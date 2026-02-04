@@ -1,89 +1,134 @@
-# ZDFTranslate - 沉浸式双语翻译插件
+# ZDFTranslate - 简单双语翻译插件
 
-类似「沉浸式翻译」的 Chrome 浏览器扩展，支持双语对照阅读。
+简单的 Chrome 浏览器扩展，支持双语对照阅读。
 
 ## 功能特性
 
-- 🌐 **智能识别** - 自动识别页面主要内容区域
-- 📖 **双语对照** - 原文译文并排显示，便于对照学习
-- 🎯 **多种模式** - 双语对照/直接替换/悬停翻译
-- ⚡ **多翻译源** - 支持 Google Translate / DeepL / OpenAI
-- 🎨 **自定义样式** - 可调整译文颜色、字号、行间距
-- 🚫 **站点排除** - 可设置不需要翻译的网站
+- ✅ **免费开箱即用** - 内置 LibreTranslate + MyMemory 免费翻译服务
+- ✅ **多种翻译引擎** - 支持 Kimi、智谱清言、阿里云百炼、DeepSeek、Google、DeepL、OpenAI
+- ✅ **双语对照显示** - 原文译文并排显示，方便对照学习
+- ✅ **一键切换原文** - 随时在译文和原文之间切换
+- ✅ **批量并行翻译** - 优化翻译速度，减少等待时间
 
-## 项目结构
+## 支持的翻译服务
 
-```
-zdf-translate/
-├── manifest.json      # 插件配置
-├── content.js         # 内容脚本（核心翻译逻辑）
-├── background.js      # 后台服务
-├── popup.html         # 弹出面板
-├── popup.js           # 弹出面板逻辑
-├── options.html       # 设置页面
-├── options.js         # 设置页面逻辑
-├── lib/
-│   ├── dom-parser.js  # DOM解析工具
-│   └── translator.js  # 翻译工具函数
-├── styles/
-│   ├── content.css    # 页面注入样式
-│   ├── popup.css      # 弹出面板样式
-│   └── options.css    # 设置页面样式
-└── icons/
-    ├── icon16.png     # 16x16 图标
-    ├── icon48.png     # 48x48 图标
-    └── icon128.png    # 128x128 图标
-```
+### 免费服务（无需 API Key）
+- LibreTranslate（开源免费）
+- MyMemory（备用）
 
-## 本地开发
+### 国内 AI 服务
+- Kimi（月之暗面）
+- 智谱清言（GLM）
+- 阿里云百炼
+- DeepSeek
 
-1. 克隆项目
-```bash
-cd zdf-translate
-```
+### 国际服务
+- Google Translate
+- DeepL
+- OpenAI
 
-2. 加载到 Chrome
-- 打开 `chrome://extensions/`
-- 开启「开发者模式」
-- 点击「加载已解压的扩展程序」
-- 选择本项目文件夹
+## 安装
 
-3. 配置 API Key
-- 点击扩展图标 → 高级设置
-- 填入至少一个翻译服务的 API Key
+从 Chrome Web Store 安装：
+[待添加链接]
 
-## 获取 API Key
+## 使用说明
 
-### Google Translate
-1. 访问 [Google Cloud Console](https://console.cloud.google.com/)
-2. 创建项目并启用 Cloud Translation API
-3. 创建 API 密钥
+1. 点击浏览器工具栏的 ZDFTranslate 图标
+2. 选择目标语言和翻译服务
+3. 点击"翻译当前页面"
+4. 享受双语阅读体验
 
-### DeepL
-1. 访问 [DeepL API](https://www.deepl.com/pro-api)
-2. 注册账号获取 API Key
-- `:fx` 结尾的是免费版
+## 配置 API Key
 
-### OpenAI
-1. 访问 [OpenAI Platform](https://platform.openai.com/api-keys)
-2. 创建 API Key
+如需更好的翻译质量，可在设置页面配置 AI 服务 API Key：
 
-## 打包上架
+- **Kimi**: https://platform.moonshot.cn/
+- **智谱清言**: https://open.bigmodel.cn/
+- **阿里云百炼**: https://bailian.console.aliyun.com/
+- **DeepSeek**: https://platform.deepseek.com/
 
-```bash
-# 打包为 zip
-zip -r zdf-translate.zip zdf-translate/ -x "*.git*"
+## 隐私政策
 
-# 或直接到 Chrome Web Store 开发者后台上传文件夹
-```
+本扩展不会收集、存储或传输用户的任何个人数据。
 
-## 权限说明
+详细隐私政策请参见 [PRIVACY.md](PRIVACY.md)
 
-- `storage` - 保存用户设置
-- `activeTab` - 访问当前标签页
-- `scripting` - 注入翻译脚本
-- `host_permissions` - 在所有网站运行
+## 开源协议
 
-## License
+MIT License
 
-MIT
+## 开发者
+
+Z.D.F
+
+## 更新日志
+
+### v1.0.19
+- 优化 LibreTranslate 稳定性（10 个实例 + MyMemory 备用）
+- 批量并行翻译，提升速度
+- 支持切换服务后自动重新翻译
+
+### v1.0.18
+- 增加 MyMemory 备用翻译服务
+- 速度优化
+
+### v1.0.17
+- 修复恢复原文问题
+
+### v1.0.16
+- 添加 LibreTranslate 免费翻译服务
+- 移除页面加载自动翻译
+
+### v1.0.15
+- 修复恢复原文后自动翻译问题
+- 修复切换模型问题
+
+### v1.0.14
+- 添加批量翻译和并发控制
+- 速度优化
+
+### v1.0.13
+- 修复恢复原文问题
+
+### v1.0.12
+- 移除页面加载自动翻译
+
+### v1.0.11
+- 修复阿里云 MT 模型翻译为英文的问题
+
+### v1.0.10
+- 添加调试日志
+
+### v1.0.9
+- 修复配置更新问题
+
+### v1.0.8
+- 修复阿里云 API 问题
+
+### v1.0.7
+- 修复代码结构问题
+
+### v1.0.6
+- 禁用批量翻译，改用逐段翻译
+- 修复阿里云 400 错误
+
+### v1.0.5
+- 添加请求限流和重试机制
+
+### v1.0.4
+- 改用 OpenAI 兼容模式
+
+### v1.0.3
+- 修复阿里云返回格式问题
+
+### v1.0.2
+- 修复 429 限流问题
+- 添加限流和重试
+
+### v1.0.1
+- 修复恢复原文稳定性
+- 优化配置更新逻辑
+
+### v1.0.0
+- 初始版本发布
