@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZDFTranslate</title>
+  <link rel="stylesheet" href="styles/popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 48 48" width="32" height="32">
+            <defs>
+              <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" style="stop-color:#4285f4"/>
+                <stop offset="100%" style="stop-color:#3367d6"/>
+              </linearGradient>
+            </defs>
+            <rect width="48" height="48" rx="10" fill="url(#logoGrad)"/>
+            <text x="9" y="34" fill="white" font-family="Arial, sans-serif" font-weight="bold" font-size="22">Z</text>
+            <text x="26" y="34" fill="white" font-family="Arial, sans-serif" font-weight="bold" font-size="22">T</text>
+            <path d="M 18 18 L 24 12 L 30 18" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M 30 30 L 24 36 L 18 30" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+          </svg>
+        </div>
+        <span class="logo-text">ZDFTranslate</span>
+      </div>
+    </header>
+
+    <main>
+      <!-- 主操作按钮 -->
+      <section class="main-action">
+        <button id="translateToggleBtn" class="btn-translate">
+          <svg class="btn-icon" viewBox="0 0 24 24" width="20" height="20">
+            <path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z" fill="currentColor"/>
+          </svg>
+          <span id="btnText">翻译当前页面</span>
+        </button>
+      </section>
+
+      <!-- 翻译设置 -->
+      <section class="settings">
+        <div class="setting-item">
+          <label>目标语言</label>
+          <select id="targetLang">
+            <option value="zh-CN">简体中文</option>
+            <option value="zh-TW">繁體中文</option>
+            <option value="en">English</option>
+            <option value="ja">日本語</option>
+            <option value="ko">한국어</option>
+          </select>
+        </div>
+
+        <div class="setting-item">
+          <label>翻译服务</label>
+          <select id="translationService">
+            <optgroup label="免费服务（无需API Key）">
+              <option value="libretranslate" selected>LibreTranslate（免费）</option>
+            </optgroup>
+            <optgroup label="国内AI">
+              <option value="kimi">Kimi</option>
+              <option value="zhipu">智谱清言</option>
+              <option value="aliyun">阿里云百炼</option>
+              <option value="deepseek">DeepSeek</option>
+            </optgroup>
+            <optgroup label="国际服务">
+              <option value="google">Google</option>
+              <option value="deepl">DeepL</option>
+              <option value="openai">OpenAI</option>
+            </optgroup>
+          </select>
+        </div>
+
+        <div class="setting-item">
+          <label>显示模式</label>
+          <select id="displayMode">
+            <option value="bilingual">双语对照</option>
+            <option value="replace">仅显示译文</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- 状态信息 -->
+      <section class="status">
+        <div id="statusText">就绪</div>
+      </section>
+    </main>
+
+    <footer>
+      <a href="#" id="openOptions">
+        <svg viewBox="0 0 24 24" width="14" height="14"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L3.16 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" fill="currentColor"/></svg>
+        设置
+      </a>
+    </footer>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

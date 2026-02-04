@@ -1,0 +1,86 @@
+/* ZDFTranslate - Content Styles - 沉浸式翻译风格 */
+
+/* 翻译容器 */
+.zdf-translation-container {
+  position: relative;
+}
+
+/* 原文区域 */
+.zdf-original {
+  transition: opacity 0.3s ease;
+}
+
+/* 译文区域 */
+.zdf-translated {
+  color: #666;
+  font-size: 0.95em;
+  margin-top: 8px;
+  padding: 10px 0 10px 14px;
+  border-left: 3px solid #4285f4;
+  background: linear-gradient(to right, rgba(66, 133, 244, 0.04), transparent);
+  line-height: 1.7;
+  transition: all 0.3s ease;
+}
+
+/* 暗色模式适配 */
+@media (prefers-color-scheme: dark) {
+  .zdf-translated {
+    color: #aaa;
+    border-left-color: #8ab4f8;
+    background: linear-gradient(to right, rgba(138, 180, 248, 0.08), transparent);
+  }
+}
+
+/* 加载动画 */
+.zdf-translating {
+  position: relative;
+}
+
+.zdf-translating::after {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #e03131;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: zdf-spin 0.8s linear infinite;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+@keyframes zdf-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 选中文本翻译按钮 */
+.zdf-float-btn {
+  position: absolute;
+  background: linear-gradient(135deg, #ff4757 0%, #e03131 100%);
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 2px 10px rgba(224, 49, 49, 0.3);
+  z-index: 10001;
+  transition: all 0.2s ease;
+}
+
+.zdf-float-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(224, 49, 49, 0.4);
+}
+
+/* 翻译激活状态标记 */
+body[data-zdf-active="true"] {
+  /* 可以添加全局样式 */
+}
+
+/* 段落悬停效果 */
+.zdf-translation-container:hover .zdf-translated {
+  border-left-width: 4px;
+  padding-left: 13px;
+}

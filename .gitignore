@@ -1,0 +1,11 @@
+.git
+*.zip
+test_extension.py
+generate_screenshots.py
+background_aliyun_patch.js
+package.sh
+PUBLISH-GUIDE.md
+PRIVACY-FORM.md
+store-description.md
+TESTING.md
+zdf-translate-v*.zip

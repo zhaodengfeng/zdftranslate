@@ -1,0 +1,195 @@
+/* ZDFTranslate - Popup Styles - 沉浸式翻译风格 */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  font-size: 14px;
+  color: #333;
+  background: #f5f5f5;
+  width: 320px;
+}
+
+.container {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+/* Header */
+header {
+  display: flex;
+  align-items: center;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #4285f4 0%, #3367d6 100%);
+  color: white;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-icon {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logo-icon svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+.logo-text {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+/* Main Action */
+.main-action {
+  padding: 20px;
+  background: #fafafa;
+  border-bottom: 1px solid #eee;
+}
+
+.btn-translate {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #4285f4 0%, #3367d6 100%);
+  color: white;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);
+}
+
+.btn-translate:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(66, 133, 244, 0.4);
+}
+
+.btn-translate:active {
+  transform: translateY(0);
+}
+
+.btn-translate.restored {
+  background: linear-gradient(135deg, #34a853 0%, #2e7d32 100%);
+  box-shadow: 0 2px 8px rgba(52, 168, 83, 0.3);
+}
+
+.btn-translate.restored:hover {
+  box-shadow: 0 4px 12px rgba(52, 168, 83, 0.4);
+}
+
+.btn-icon {
+  flex-shrink: 0;
+}
+
+/* Settings */
+.settings {
+  padding: 16px 20px;
+}
+
+.setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.setting-item:last-child {
+  margin-bottom: 0;
+}
+
+.setting-item label {
+  font-size: 13px;
+  color: #666;
+  font-weight: 500;
+}
+
+.setting-item select {
+  padding: 8px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 13px;
+  background: white;
+  color: #333;
+  cursor: pointer;
+  min-width: 140px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.setting-item select:hover,
+.setting-item select:focus {
+  border-color: #ff4757;
+}
+
+.setting-item select optgroup {
+  font-weight: 600;
+  color: #666;
+}
+
+/* Status */
+.status {
+  padding: 0 20px 12px;
+  text-align: center;
+}
+
+#statusText {
+  font-size: 12px;
+  color: #999;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+#statusText.show {
+  opacity: 1;
+}
+
+/* Footer */
+footer {
+  padding: 12px 20px;
+  background: #fafafa;
+  border-top: 1px solid #eee;
+  text-align: center;
+}
+
+footer a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #666;
+  text-decoration: none;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+footer a:hover {
+  color: #ff4757;
+  background: rgba(255, 71, 87, 0.08);
+}
+
+footer a svg {
+  opacity: 0.7;
+}
