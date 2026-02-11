@@ -13,7 +13,7 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 
 ## Install
 
-1. Download from [Chrome Web Store](#) or load unpacked
+1. Download from [Chrome Web Store](https://chrome.google.com/webstore/detail/dnjhjgnofonkmcbgbdlfmhfpfjfidfae) or load unpacked
 2. Go to `chrome://extensions/` → Enable Developer Mode → Load Unpacked
 3. Select the `src/` folder
 
