@@ -24,20 +24,16 @@ Click the extension icon → Settings to configure:
 - Enter your API key (some providers are free)
 - Customize display styles
 
-## Project Structure
+## API Keys
 
-```
-src/
-├── manifest.json       # Extension config
-├── background.js       # Service worker
-├── content.js          # Content script (core translation)
-├── youtube.js          # YouTube subtitle injection
-├── popup.html/js       # Popup UI
-├── options.html/js     # Settings page
-├── lib/                # Utilities
-├── styles/             # CSS
-└── icons/              # Extension icons
-```
+| Provider | Get API Key | Notes |
+|----------|------------|-------|
+| Google Translate | [Cloud Console](https://console.cloud.google.com/) → Enable Cloud Translation API → Create Credentials | Paid, usage-based |
+| DeepL | [DeepL API](https://www.deepl.com/pro-api) → Sign up | Free tier available (keys ending in `:fx`) |
+| OpenAI | [Platform](https://platform.openai.com/api-keys) → Create API Key | Paid, usage-based |
+| Kimi | [Moonshot Platform](https://platform.moonshot.cn/) → API Keys | Free tier available |
+| Zhipu AI | [Open Platform](https://open.bigmodel.cn/) → API Keys | Free tier available |
+| DeepSeek | [DeepSeek Platform](https://platform.deepseek.com/) → API Keys | Free tier available |
 
 ## License
 
