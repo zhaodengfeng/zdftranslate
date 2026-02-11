@@ -34,6 +34,7 @@ Click the extension icon → Settings to configure:
 | Kimi | [Moonshot Platform](https://platform.moonshot.cn/) → API Keys | Free tier available |
 | Zhipu AI | [Open Platform](https://open.bigmodel.cn/) → API Keys | Free tier available |
 | DeepSeek | [DeepSeek Platform](https://platform.deepseek.com/) → API Keys | Free tier available |
+| Alibaba Cloud (Qwen) | [Bailian Platform](https://bailian.console.aliyun.com/) → API Keys | Free tier available |
 
 ## License
 
