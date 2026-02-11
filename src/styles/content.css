@@ -1,0 +1,527 @@
+/* ZDFTranslate - Content Styles - 简单翻译样式 */
+
+/* 翻译容器 */
+.zdf-translation-container {
+  position: relative;
+}
+
+/* 原文区域 */
+.zdf-original {
+  transition: opacity 0.3s ease;
+}
+
+/* 译文区域 */
+.zdf-translated {
+  color: #666;
+  font-size: 0.95em;
+  margin-top: 8px;
+  padding: 10px 0 10px 14px;
+  border-left: 3px solid #3b82f6;
+  background: linear-gradient(to right, rgba(66, 133, 244, 0.04), transparent);
+  line-height: 1.7;
+  transition: all 0.3s ease;
+}
+
+/* 暗色模式适配 */
+@media (prefers-color-scheme: dark) {
+  .zdf-translated {
+    color: #aaa;
+    border-left-color: #93c5fd;
+    background: linear-gradient(to right, rgba(138, 180, 248, 0.08), transparent);
+  }
+}
+
+/* 加载动画 */
+.zdf-translating {
+  position: relative;
+}
+
+.zdf-translating::after {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #2563eb;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: zdf-spin 0.8s linear infinite;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+@keyframes zdf-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 选中文本翻译按钮 */
+.zdf-float-btn {
+  position: absolute;
+  background: linear-gradient(135deg, #60a5fa 0%, #2563eb 100%);
+  color: white;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.30);
+  z-index: 10001;
+  transition: all 0.2s ease;
+}
+
+.zdf-float-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.38);
+}
+
+/* 翻译激活状态标记 */
+body[data-zdf-active="true"] {
+  /* 可以添加全局样式 */
+}
+
+/* 段落悬停效果 */
+.zdf-translation-container:hover .zdf-translated {
+  border-left-width: 4px;
+  padding-left: 13px;
+}
+
+/* ========== 翻译弹窗样式 (现代化设计) ========== */
+.zdf-popup {
+  --zdf-left-inset: 18px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 88%;
+  max-width: 460px;
+  max-height: 74vh;
+  background: #fff;
+  border-radius: 24px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.16), 0 0 0 1px rgba(0, 0, 0, 0.03);
+  z-index: 100000;
+  overflow: hidden;
+  animation: zdf-popup-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+@keyframes zdf-popup-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -48%) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* 顶部栏 */
+.zdf-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px 8px var(--zdf-left-inset);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.zdf-popup-logo {
+  width: 25px;
+  height: 25px;
+  background: linear-gradient(135deg, #93c5fd, #2563eb);
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.zdf-popup-logo svg {
+  width: 14px;
+  height: 14px;
+  color: #fff;
+}
+
+.zdf-popup-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.zdf-popup-tool {
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.zdf-popup-tool svg {
+  width: 12px;
+  height: 12px;
+  color: #999;
+  transition: color 0.15s;
+}
+
+.zdf-popup-tool:hover {
+  background: #f5f5f5;
+}
+
+.zdf-popup-tool:hover svg {
+  color: #666;
+}
+
+.zdf-popup-close:hover svg {
+  color: #2563eb;
+}
+
+/* 内容区域 */
+.zdf-popup-content {
+  padding: 6px 14px 10px var(--zdf-left-inset);
+  overflow-y: auto;
+  flex: 1;
+}
+
+/* 原文 - 默认折叠 */
+.zdf-popup-original {
+  font-size: 13px;
+  color: #888;
+  line-height: 1.7;
+  padding: 0;
+  background: transparent;
+  border-radius: 10px;
+  margin-bottom: 0;
+  max-height: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: all 0.25s ease;
+}
+
+.zdf-popup-original.zdf-popup-original-show {
+  max-height: 200px;
+  opacity: 1;
+  overflow-y: auto;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  background: #f8f9fa;
+}
+
+/* 译文 */
+.zdf-popup-translated {
+  font-size: 15px;
+  color: #1a1a1a;
+  line-height: 1.72;
+  font-weight: 400;
+  letter-spacing: 0.005em;
+}
+
+.zdf-popup-translated p {
+  margin: 0 0 10px;
+  min-height: 1.72em;
+}
+
+.zdf-popup-translated p:last-child {
+  margin-bottom: 0;
+}
+
+.zdf-popup-error {
+  color: #2563eb;
+  font-size: 14px;
+}
+
+.zdf-popup-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #999;
+  font-size: 14px;
+}
+
+.zdf-popup-spinner {
+  width: 18px;
+  height: 18px;
+  color: #2563eb;
+  animation: zdf-spin 1s linear infinite;
+}
+
+/* 底部工具栏 */
+.zdf-popup-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 12px var(--zdf-left-inset);
+  border-top: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.zdf-popup-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.zdf-popup-action {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #f5f5f5;
+  border-radius: 9px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.zdf-popup-action svg {
+  width: 16px;
+  height: 16px;
+  color: #666;
+  transition: color 0.15s;
+}
+
+.zdf-popup-action:hover {
+  background: #ebebeb;
+}
+
+.zdf-popup-action:hover svg {
+  color: #333;
+}
+
+/* 暗色模式弹窗 */
+@media (prefers-color-scheme: dark) {
+  .zdf-popup {
+    background: #1e1e1e;
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.5);
+  }
+  
+  .zdf-popup-header {
+    border-bottom-color: rgba(255, 255, 255, 0.06);
+  }
+  
+  .zdf-popup-tool:hover {
+    background: #2a2a2a;
+  }
+  
+  .zdf-popup-tool svg {
+    color: #777;
+  }
+  
+  .zdf-popup-tool:hover svg {
+    color: #aaa;
+  }
+  
+  .zdf-popup-original {
+    background: #282828;
+    color: #888;
+  }
+  
+  .zdf-popup-translated {
+    color: #e8e8e8;
+  }
+  
+  .zdf-popup-footer {
+    border-top-color: rgba(255, 255, 255, 0.06);
+  }
+  
+  .zdf-popup-action {
+    background: #2a2a2a;
+  }
+  
+  .zdf-popup-action:hover {
+    background: #333;
+  }
+  
+  .zdf-popup-action svg {
+    color: #888;
+  }
+  
+  .zdf-popup-action:hover svg {
+    color: #ccc;
+  }
+}
+
+/* ========== 悬浮翻译按钮 ========== */
+.zdf-floating-btn {
+  position: fixed;
+  right: 20px;
+  bottom: 100px;
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, #60a5fa, #2563eb);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(37, 99, 235, 0.5);
+  border-radius: 50%;
+  cursor: pointer;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  animation: zdf-float-in 0.3s ease-out;
+}
+
+@keyframes zdf-float-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5) translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.zdf-floating-btn:hover {
+  transform: scale(1.1);
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.35);
+}
+
+.zdf-floating-btn:active {
+  transform: scale(0.95);
+}
+
+.zdf-floating-btn > .zdf-float-icon {
+  width: 18px;
+  height: 18px;
+  color: #fff;
+  transition: color 0.2s;
+}
+
+.zdf-floating-btn:hover > .zdf-float-icon {
+  color: #fff;
+}
+
+/* 绿勾徽章 - 右上角 */
+.zdf-float-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  width: 16px;
+  height: 16px;
+  background: #37b24d;
+  border-radius: 50%;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 4px rgba(55, 178, 77, 0.4);
+  animation: zdf-badge-pop 0.25s ease-out;
+}
+
+@keyframes zdf-badge-pop {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+.zdf-float-badge svg {
+  width: 10px;
+  height: 10px;
+  color: #fff;
+}
+
+/* 已翻译状态 - 图标保持不变，只显示徽章 */
+.zdf-floating-btn.zdf-float-translated {
+  background: linear-gradient(135deg, #60a5fa, #2563eb);
+}
+
+.zdf-floating-btn.zdf-float-translated:hover {
+  background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+}
+
+.zdf-floating-btn.zdf-float-translated > .zdf-float-icon {
+  color: #fff;
+}
+
+.zdf-floating-btn.zdf-float-translated:hover > .zdf-float-icon {
+  color: #fff;
+}
+
+/* 加载状态 - 可以点击取消 */
+.zdf-floating-btn.zdf-float-loading {
+  animation: zdf-float-pulse 1s ease-in-out infinite;
+}
+
+@keyframes zdf-float-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: scale(0.95);
+  }
+}
+
+.zdf-floating-btn.zdf-float-loading::after {
+  content: '';
+  position: absolute;
+  width: calc(100% + 6px);
+  height: calc(100% + 6px);
+  border: 2px solid transparent;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: zdf-spin 0.8s linear infinite;
+}
+
+/* 暗色模式 */
+@media (prefers-color-scheme: dark) {
+  .zdf-floating-btn {
+    background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+    border-color: rgba(147, 197, 253, 0.35);
+  }
+  
+  .zdf-floating-btn:hover {
+    background: linear-gradient(135deg, #2563eb, #1e40af);
+  }
+  
+  .zdf-floating-btn > .zdf-float-icon {
+    color: #fff;
+  }
+  
+  .zdf-floating-btn:hover > .zdf-float-icon {
+    color: #fff;
+  }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .zdf-floating-btn {
+    right: 15px;
+    bottom: 80px;
+    width: 32px;
+    height: 32px;
+  }
+  
+  .zdf-floating-btn > .zdf-float-icon {
+    width: 16px;
+    height: 16px;
+  }
+  
+  .zdf-float-badge {
+    width: 14px;
+    height: 14px;
+    top: -3px;
+    right: -3px;
+  }
+  
+  .zdf-float-badge svg {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .zdf-translation-popup {
+    width: 95%;
+    max-height: 70vh;
+    padding: 16px;
+  }
+}
