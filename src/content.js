@@ -612,9 +612,7 @@
 
       const logo = document.createElement('div');
       logo.className = 'zdf-popup-logo';
-      logo.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/>
-      </svg>`;
+      logo.innerHTML = `<img src="${chrome.runtime.getURL('icons/icon48.png')}" class="zdf-popup-logo-img" alt="ZDFTranslate">`;
 
       const toolbar = document.createElement('div');
       toolbar.className = 'zdf-popup-toolbar';
@@ -713,7 +711,17 @@
 
     const originalDiv = popup.querySelector('.zdf-popup-original');
     if (originalDiv) {
-      originalDiv.textContent = originalText || '';
+      const paras = normalizeTextToParagraphsStrict(originalText || '');
+      originalDiv.innerHTML = '';
+      if (paras.length > 0) {
+        paras.forEach(t => {
+          const p = document.createElement('p');
+          p.textContent = t;
+          originalDiv.appendChild(p);
+        });
+      } else {
+        originalDiv.textContent = originalText || '';
+      }
       originalDiv.classList.remove('zdf-popup-original-show');
     }
 
@@ -805,6 +813,28 @@
     }, 14);
   }
 
+  function getPageDisplayFontFamily() {
+    try {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        let node = range.startContainer;
+        if (node && node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+        if (node && node.nodeType === Node.ELEMENT_NODE) {
+          const ff = getComputedStyle(node).fontFamily;
+          if (ff) return ff;
+        }
+      }
+    } catch (e) {}
+
+    try {
+      const ff = getComputedStyle(document.body).fontFamily;
+      if (ff) return ff;
+    } catch (e) {}
+
+    return '"PingFang SC", "SF Pro Text", "Inter", "Segoe UI", "Microsoft YaHei", sans-serif';
+  }
+
   async function exportBilingualAsImage() {
     const originalSegs = popupLatestOriginalSegments?.length
       ? popupLatestOriginalSegments
@@ -821,22 +851,25 @@
       translated: (translatedSegs[i] || '').trim()
     })).filter(p => p.original || p.translated);
 
-    // ===== 高清导出参数（解决模糊） =====
+    // ===== 高清导出参数（现代弹窗同款风格） =====
     const scale = 3;
     const baseWidth = 1242;
-    const outerPadding = 84;
-    const contentWidth = baseWidth - outerPadding * 2;
+    const outerPadding = 56;
+    const cardPaddingX = 44;
+    const headerHeight = 0;
+    const sectionGap = 26;
+    const blockGap = 24;
+    const textInsetX = 20;
+    const contentWidth = baseWidth - outerPadding * 2 - cardPaddingX * 2 - textInsetX * 2;
 
-    // ===== 偏锤子便签的极简字体排版 =====
-    const fontOriginal = '500 50px "PingFang SC", "SF Pro Display", "Inter", "Segoe UI", "Microsoft YaHei", sans-serif';
-    const fontTranslated = '380 48px "PingFang SC", "SF Pro Text", "Inter", "Segoe UI", "Microsoft YaHei", sans-serif';
-    const fontBrand = '380 38px "PingFang SC", "SF Pro Text", "Inter", "Segoe UI", "Microsoft YaHei", sans-serif';
+    // ===== 字体跟随页面显示风格（按用户要求） =====
+    const pageFontFamily = getPageDisplayFontFamily();
+    const fontOriginal = `500 42px ${pageFontFamily}`;
+    const fontTranslated = `400 42px ${pageFontFamily}`;
 
-    const lineHeight = 76;
-    const topSpace = 112;
-    const blockGap = 74;
-    const paraInnerGap = 30;
-    const footerArea = 220;
+    const lineHeight = 62;
+    const labelH = 34;
+    const blockPadY = 22;
 
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
@@ -844,19 +877,60 @@
     const wrapLines = (text, font) => {
       if (!text) return [];
       ctx.font = font;
-      const chars = Array.from(text);
+
+      const tokenRe = /([A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*)|(\s+)|([^\sA-Za-z0-9])/g;
+      const tokens = [];
+      let m;
+      while ((m = tokenRe.exec(text)) !== null) {
+        tokens.push(m[0]);
+      }
+
       const lines = [];
       let line = '';
-      for (const ch of chars) {
-        const test = line + ch;
-        if (ctx.measureText(test).width > contentWidth && line) {
-          lines.push(line);
-          line = ch;
-        } else {
-          line = test;
+
+      const pushLine = () => {
+        const t = line.trim();
+        if (t) lines.push(t);
+        line = '';
+      };
+
+      for (const tk of tokens) {
+        const isSpace = /^\s+$/.test(tk);
+
+        // 行首不保留空白
+        if (!line && isSpace) continue;
+
+        const candidate = line + tk;
+        if (ctx.measureText(candidate).width <= contentWidth) {
+          line = candidate;
+          continue;
         }
+
+        // 放不下：先换行
+        if (line) {
+          pushLine();
+          if (isSpace) continue;
+          if (ctx.measureText(tk).width <= contentWidth) {
+            line = tk;
+            continue;
+          }
+        }
+
+        // 极端长token兜底（超长URL/超长连续字符）
+        let part = '';
+        for (const ch of Array.from(tk)) {
+          const t = part + ch;
+          if (ctx.measureText(t).width > contentWidth && part) {
+            lines.push(part);
+            part = ch;
+          } else {
+            part = t;
+          }
+        }
+        line = part;
       }
-      if (line) lines.push(line);
+
+      if (line.trim()) lines.push(line.trim());
       return lines;
     };
 
@@ -865,81 +939,322 @@
       translatedLines: wrapLines(p.translated, fontTranslated)
     }));
 
-    let contentHeight = topSpace;
-    blocks.forEach((b) => {
-      contentHeight += b.originalLines.length * lineHeight;
-      contentHeight += paraInnerGap;
-      contentHeight += b.translatedLines.length * lineHeight;
-      contentHeight += blockGap;
+    const blockHeights = blocks.map((b) => {
+      const originalH = labelH + blockPadY + b.originalLines.length * lineHeight + blockPadY;
+      const translatedH = labelH + blockPadY + b.translatedLines.length * lineHeight + blockPadY;
+      return originalH + sectionGap + translatedH + blockGap;
     });
 
-    const baseHeight = Math.max(1050, contentHeight + footerArea + 32);
+    const contentHeight = blockHeights.reduce((a, b) => a + b, 0);
+    const cardHeight = headerHeight + 26 + contentHeight + 24;
 
-    // 先按高清像素创建，再缩放绘制（抗锯齿更好）
+    const showWatermark = config.style?.showWatermark !== false;
+    const baseHeight = Math.max(980, outerPadding * 2 + cardHeight);
+
     canvas.width = Math.round(baseWidth * scale);
     canvas.height = Math.round(baseHeight * scale);
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.textBaseline = 'alphabetic';
 
-    // ===== 便签背景（极简纸感） =====
-    ctx.fillStyle = '#f7f6f3';
+    // 页面底色
+    const g = ctx.createLinearGradient(0, 0, 0, baseHeight);
+    g.addColorStop(0, '#f3f7ff');
+    g.addColorStop(1, '#eef3fb');
+    ctx.fillStyle = g;
     ctx.fillRect(0, 0, baseWidth, baseHeight);
 
-    let y = topSpace;
+    // 主卡片
+    const cardX = outerPadding;
+    const cardY = outerPadding;
+    const cardW = baseWidth - outerPadding * 2;
+    const cardH = baseHeight - outerPadding * 2;
+    ctx.fillStyle = '#ffffff';
+    roundRect(ctx, cardX, cardY, cardW, cardH, 24);
+    ctx.fill();
+
+    let y = cardY + 28;
+    const blockX = cardX + cardPaddingX;
+    const blockW = cardW - cardPaddingX * 2;
+
+    const drawLabel = (text, x, yTop, bg, fg) => {
+      ctx.fillStyle = bg;
+      roundRect(ctx, x, yTop, 112, 34, 10);
+      ctx.fill();
+      ctx.fillStyle = fg;
+      ctx.font = `600 20px ${pageFontFamily}`;
+      ctx.fillText(text, x + 18, yTop + 24);
+    };
+
     blocks.forEach((b) => {
-      // 原文（上）
-      ctx.fillStyle = '#343230';
+      // 原文区块
+      const originalBoxH = labelH + blockPadY + b.originalLines.length * lineHeight + blockPadY;
+      ctx.fillStyle = '#f7faff';
+      roundRect(ctx, blockX, y, blockW, originalBoxH, 14);
+      ctx.fill();
+      drawLabel('原文', blockX + 16, y + 14, '#e6f0ff', '#2052ad');
+
+      ctx.fillStyle = '#2f3c54';
       ctx.font = fontOriginal;
+      let ty = y + 14 + labelH + blockPadY + 40;
       b.originalLines.forEach(line => {
-        ctx.fillText(line, outerPadding, y);
-        y += lineHeight;
+        ctx.fillText(line, blockX + textInsetX, ty);
+        ty += lineHeight;
       });
 
-      y += paraInnerGap;
+      y += originalBoxH + sectionGap;
 
-      // 译文（下）
-      ctx.fillStyle = '#4f4d4b';
+      // 译文区块
+      const translatedBoxH = labelH + blockPadY + b.translatedLines.length * lineHeight + blockPadY;
+      ctx.fillStyle = '#f5f8ff';
+      roundRect(ctx, blockX, y, blockW, translatedBoxH, 14);
+      ctx.fill();
+      drawLabel('译文', blockX + 16, y + 14, '#dbeafe', '#1d4ed8');
+
+      ctx.fillStyle = '#334155';
       ctx.font = fontTranslated;
+      ty = y + 14 + labelH + blockPadY + 40;
       b.translatedLines.forEach(line => {
-        ctx.fillText(line, outerPadding, y);
-        y += lineHeight;
+        ctx.fillText(line, blockX + textInsetX, ty);
+        ty += lineHeight;
       });
 
-      y += blockGap;
+      y += translatedBoxH + blockGap;
     });
 
-    // 底部分割线 + 品牌
-    const lineY = baseHeight - 198;
-    ctx.strokeStyle = '#beb9b2';
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.moveTo(outerPadding, lineY);
-    ctx.lineTo(baseWidth - outerPadding, lineY);
-    ctx.stroke();
+    // 与网页截图一致：底部追加统一水印栏（品牌图 + 当前页面URL）
+    let outputCanvas = canvas;
+    if (showWatermark) {
+      const watermarkHeight = 170 * scale;
+      const totalCanvas = document.createElement('canvas');
+      totalCanvas.width = canvas.width;
+      totalCanvas.height = canvas.height + watermarkHeight;
+      const totalCtx = totalCanvas.getContext('2d');
+      totalCtx.drawImage(canvas, 0, 0);
+      await drawWatermarkBar(totalCtx, totalCanvas.width, canvas.height, watermarkHeight);
+      outputCanvas = totalCanvas;
+    }
 
-    ctx.fillStyle = '#5a5753';
-    ctx.font = fontBrand;
-    const brand = 'ZDFTranslate';
-    const textWidth = ctx.measureText(brand).width;
-    const brandY = baseHeight - 104;
-    ctx.fillText(brand, (baseWidth - textWidth) / 2, brandY);
+    await downloadOptimizedCanvas(outputCanvas, `zdftranslate-selection-modern-${Date.now()}`);
+  }
 
-    // 方案A：品牌名下方居中短链
-    const shortUrl = '下载插件：bit.ly/40094t1';
-    ctx.fillStyle = '#8b8781';
-    ctx.font = '380 26px "PingFang SC", "SF Pro Text", "Inter", "Segoe UI", "Microsoft YaHei", sans-serif';
-    const linkWidth = ctx.measureText(shortUrl).width;
-    ctx.fillText(shortUrl, (baseWidth - linkWidth) / 2, brandY + 42);
+  // 导出：极致清晰优先（默认 PNG），仅在 PNG 失败时回退 JPEG
+  async function downloadOptimizedCanvas(sourceCanvas, baseName) {
+    // 不做降采样，尽量保留原始像素细节
+    const canvas = sourceCanvas;
 
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1));
+    let blob = await canvasToBlob(canvas, 'image/png', 1);
+    let ext = 'png';
+
+    // 仅兜底
+    if (!blob) {
+      blob = await canvasToBlob(canvas, 'image/jpeg', 0.98);
+      ext = 'jpg';
+    }
+
     if (!blob) return;
 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `zdftranslate-bilingual-note-hd-${Date.now()}.png`;
+    a.download = `${baseName}.${ext}`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function canvasToBlob(canvas, type, quality) {
+    return new Promise(resolve => canvas.toBlob(resolve, type, quality));
+  }
+
+  function getSanitizedPageUrl() {
+    try {
+      const origin = location.origin || '';
+      const path = decodeURIComponent(location.pathname || '/');
+      return `${origin}${path}`;
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function fitTextToWidth(ctx, text, maxWidth) {
+    if (!text) return '';
+    if (ctx.measureText(text).width <= maxWidth) return text;
+    let cut = 0;
+    for (let i = 1; i <= text.length; i++) {
+      if (ctx.measureText(text.slice(0, i)).width > maxWidth) break;
+      cut = i;
+    }
+    return text.slice(0, Math.max(1, cut));
+  }
+
+  // 网址完整显示：自动最多 4 行，优先在 / 断行，不做省略号截断
+  function wrapUrlLinesNoEllipsis(ctx, text, maxWidth, maxLines = 4) {
+    if (!text) return [];
+    if (ctx.measureText(text).width <= maxWidth) return [text];
+
+    const lines = [];
+    let rest = text;
+
+    while (rest && lines.length < maxLines) {
+      if (ctx.measureText(rest).width <= maxWidth) {
+        lines.push(rest);
+        rest = '';
+        break;
+      }
+
+      let cut = 0;
+      for (let i = 1; i <= rest.length; i++) {
+        if (ctx.measureText(rest.slice(0, i)).width > maxWidth) break;
+        cut = i;
+      }
+      if (cut <= 0) cut = 1;
+
+      // 尽量回退到最近的 / 分割
+      const slashPos = rest.slice(0, cut).lastIndexOf('/');
+      if (slashPos > 8) cut = slashPos + 1;
+
+      lines.push(rest.slice(0, cut));
+      rest = rest.slice(cut);
+    }
+
+    // 超过 4 行时，最后一行继续完整显示剩余（通过缩小字号解决，不做截断）
+    if (rest) {
+      lines[lines.length - 1] = lines[lines.length - 1] + rest;
+    }
+
+    return lines.filter(Boolean);
+  }
+
+  let _watermarkBrandImgPromise = null;
+  function loadWatermarkBrandImage() {
+    if (_watermarkBrandImgPromise) return _watermarkBrandImgPromise;
+    _watermarkBrandImgPromise = new Promise((resolve) => {
+      try {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = chrome.runtime.getURL('assets/watermark-brand.png');
+      } catch (e) {
+        resolve(null);
+      }
+    });
+    return _watermarkBrandImgPromise;
+  }
+
+  let _uiLogoMarkPromise = null;
+  function loadUiLogoMarkImage() {
+    if (_uiLogoMarkPromise) return _uiLogoMarkPromise;
+    _uiLogoMarkPromise = new Promise((resolve) => {
+      try {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = chrome.runtime.getURL('icons/icon48.png');
+      } catch (e) {
+        resolve(null);
+      }
+    });
+    return _uiLogoMarkPromise;
+  }
+
+  async function drawWatermarkBar(ctx, canvasWidth, startY, barHeight) {
+    const bg = '#f7f7f7';
+    const line = '#d8d8d8';
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, startY, canvasWidth, barHeight);
+
+    ctx.strokeStyle = line;
+    ctx.lineWidth = Math.max(1, Math.round(canvasWidth / 1200));
+    ctx.beginPath();
+    ctx.moveTo(30, startY + 8);
+    ctx.lineTo(canvasWidth - 30, startY + 8);
+    ctx.stroke();
+
+    const centerX = canvasWidth / 2;
+    const brandImg = await loadWatermarkBrandImage();
+
+    // 中间品牌（图标 + ZDFTranslate）
+    const brandTop = startY + Math.max(14, Math.round(barHeight * 0.08));
+    let brandBottomY = brandTop + 56;
+    if (brandImg) {
+      // 兼容高清导出（大像素）与普通截图（常规像素）：避免logo过小
+      const targetH = Math.max(
+        56,
+        Math.min(
+          Math.round(barHeight * 0.5),
+          Math.round(canvasWidth * 0.09),
+          180
+        )
+      );
+      const targetW = Math.round(brandImg.width * (targetH / brandImg.height));
+      const drawX = Math.round(centerX - targetW / 2);
+      ctx.drawImage(brandImg, drawX, brandTop, targetW, targetH);
+      brandBottomY = brandTop + targetH;
+    } else {
+      ctx.fillStyle = '#2563eb';
+      ctx.font = `700 ${Math.max(24, Math.round(barHeight * 0.22))}px "Segoe UI", "PingFang SC", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('ZDFTranslate', centerX, brandTop + 26);
+      brandBottomY = brandTop + 52;
+    }
+
+    // 网址放在品牌下方，居中，多行完整显示
+    const urlText = getSanitizedPageUrl();
+    if (urlText) {
+      const maxTextWidth = Math.round(canvasWidth * 0.9);
+      let fontSize = Math.max(13, Math.round(barHeight * 0.12));
+      const minFontSize = 10;
+      const lineGapRatio = 0.3;
+
+      ctx.fillStyle = '#2f2f2f';
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
+
+      let lines = [];
+      while (fontSize >= minFontSize) {
+        ctx.font = `500 ${fontSize}px "Inter", "Segoe UI", "PingFang SC", sans-serif`;
+        lines = wrapUrlLinesNoEllipsis(ctx, urlText, maxTextWidth, 4);
+        const lineGap = Math.max(3, Math.round(fontSize * lineGapRatio));
+        const totalH = lines.length * fontSize + (lines.length - 1) * lineGap;
+        const availableH = barHeight - 86;
+        if (lines.length <= 4 && totalH <= availableH) break;
+        fontSize -= 1;
+      }
+
+      const lineGap = Math.max(3, Math.round(fontSize * lineGapRatio));
+      const totalH = lines.length * fontSize + (lines.length - 1) * lineGap;
+      let y = brandBottomY + 14 + fontSize / 2;
+      const maxY = startY + barHeight - totalH / 2 - 8;
+      if (y > maxY) y = maxY;
+
+      for (const line of lines) {
+        ctx.fillText(line, centerX, y);
+        y += fontSize + lineGap;
+      }
+      ctx.textAlign = 'left';
+    }
+  }
+
+  function resizeCanvasIfNeeded(sourceCanvas, maxEdge = 6000, maxPixels = 16_000_000) {
+    const { width, height } = sourceCanvas;
+    if (!width || !height) return sourceCanvas;
+
+    const edgeScale = Math.min(1, maxEdge / Math.max(width, height));
+    const pixelScale = Math.min(1, Math.sqrt(maxPixels / (width * height)));
+    const scale = Math.min(edgeScale, pixelScale);
+
+    if (scale >= 0.999) return sourceCanvas;
+
+    const targetW = Math.max(1, Math.round(width * scale));
+    const targetH = Math.max(1, Math.round(height * scale));
+    const resized = document.createElement('canvas');
+    resized.width = targetW;
+    resized.height = targetH;
+    const ctx = resized.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(sourceCanvas, 0, 0, targetW, targetH);
+    return resized;
   }
 
   function roundRect(ctx, x, y, w, h, r) {
@@ -991,10 +1306,20 @@
     popupLatestTranslatedText = translatedText;
     popupLatestOriginalSegments = Array.isArray(originalSegments) && originalSegments.length
       ? originalSegments
-      : (originalText ? originalText.split(/\n+/).map(s => s.trim()).filter(Boolean) : []);
+      : (originalText ? normalizeTextToParagraphsStrict(originalText) : []);
     popupLatestTranslatedSegments = Array.isArray(translatedSegments) && translatedSegments.length
       ? translatedSegments
       : splitTranslatedParagraphs(translatedText);
+
+    const originalDiv = popup.querySelector('.zdf-popup-original');
+    if (originalDiv) {
+      originalDiv.innerHTML = '';
+      popupLatestOriginalSegments.forEach(seg => {
+        const p = document.createElement('p');
+        p.textContent = seg;
+        originalDiv.appendChild(p);
+      });
+    }
 
     // 优先按段落数组流式渲染，避免末尾突变重排
     const renderText = popupLatestTranslatedSegments.join('\n\n') || translatedText;
@@ -1126,10 +1451,9 @@
     btn.title = '点击翻译页面';
     
     // 翻译图标 + 右上角绿勾徽章
+    const floatIconUrl = chrome.runtime.getURL('assets/float-icon-32.png');
     btn.innerHTML = `
-      <svg class="zdf-float-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/>
-      </svg>
+      <img class="zdf-float-icon-img" src="${floatIconUrl}" alt="ZDFTranslate">
       <div class="zdf-float-badge">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
           <path d="M5 13l4 4L19 7"/>
@@ -1195,11 +1519,13 @@
       // 显示绿勾徽章
       btn.classList.add('zdf-float-translated');
       btn.title = '点击恢复原文';
+      btn.setAttribute('data-tip', '恢复原文');
       if (badge) badge.style.display = 'flex';
     } else {
       // 隐藏绿勾徽章
       btn.classList.remove('zdf-float-translated');
       btn.title = isTranslating ? '翻译中...点击取消' : '点击翻译页面';
+      btn.setAttribute('data-tip', isTranslating ? '' : '翻译页面');
       if (badge) badge.style.display = 'none';
     }
   }
@@ -1212,6 +1538,750 @@
     });
   }
   
+  // ========== 文章截图功能 ==========
+
+  async function captureArticleScreenshot() {
+    const captureBtn = document.getElementById('zdf-capture-btn');
+    
+    if (captureBtn) {
+      captureBtn.classList.add('zdf-capture-loading');
+      captureBtn.title = '截图中...';
+    }
+
+    try {
+      // 1. 找到文章区域
+      const articleElement = findArticleElement();
+      if (!articleElement) {
+        alert('未找到文章内容区域');
+        return;
+      }
+
+      // 2. 计算截图区域：从标题开始到正文结束（保留原网页样式与文中广告）
+      const bounds = getArticleCaptureBounds(articleElement);
+      if (!bounds || bounds.width < 80 || bounds.height < 80) {
+        alert('未能识别有效的截图区域');
+        return;
+      }
+
+      // 3. 直接截取页面中的目标区域（不重排、不清洗）
+      // 自适应清晰度：避免 scale 过大触发浏览器内部降采样导致“又大又糊”
+      const area = Math.max(1, Math.ceil(bounds.width) * Math.ceil(bounds.height));
+      const dprScale = Math.max(2, window.devicePixelRatio || 2);
+      const maxOutputPixels = 18_000_000; // 约 1800 万像素上限
+      const areaLimitedScale = Math.sqrt(maxOutputPixels / area);
+      const captureScale = Math.max(1.8, Math.min(3, dprScale, areaLimitedScale));
+
+      const canvas = await html2canvas(document.body, {
+        useCORS: true,
+        allowTaint: true,
+        scale: captureScale,
+        backgroundColor: '#ffffff',
+        logging: false,
+        x: Math.max(0, Math.floor(window.scrollX + bounds.left)),
+        y: Math.max(0, Math.floor(window.scrollY + bounds.top)),
+        width: Math.max(1, Math.ceil(bounds.width)),
+        height: Math.max(1, Math.ceil(bounds.height)),
+        windowWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+        windowHeight: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
+      });
+
+      // 4. 根据设置决定是否添加水印
+      const showWatermark = config.style?.showWatermark !== false;
+      const watermarkHeight = showWatermark ? 170 : 0;
+      const totalCanvas = document.createElement('canvas');
+      totalCanvas.width = canvas.width;
+      totalCanvas.height = canvas.height + watermarkHeight;
+      const totalCtx = totalCanvas.getContext('2d');
+
+      // 画文章截图
+      totalCtx.drawImage(canvas, 0, 0);
+
+      if (showWatermark) {
+        await drawWatermarkBar(totalCtx, totalCanvas.width, canvas.height, watermarkHeight);
+      }
+
+      // 5. 下载图片（根据当前模式命名）
+      const title = document.title.replace(/[^\w\u4e00-\u9fa5]/g, '_').slice(0, 50);
+      const mode = translationActive ? 'bilingual' : 'original';
+      await downloadOptimizedCanvas(totalCanvas, `zdftranslate-${mode}-${title}-${Date.now()}`);
+
+    } catch (error) {
+      console.error('[ZDFTranslate] 截图失败:', error);
+      alert('截图失败: ' + error.message);
+    } finally {
+      if (captureBtn) {
+        captureBtn.classList.remove('zdf-capture-loading');
+      }
+      updateCaptureButtonState();
+    }
+  }
+
+  // 计算截图区域：仅保留“标题开始 -> 文章结束”的纵向范围，保留原网页样式
+  function getArticleCaptureBounds(articleElement) {
+    const rootRect = articleElement.getBoundingClientRect();
+    if (!rootRect || rootRect.width <= 0 || rootRect.height <= 0) return null;
+
+    const translatedNodes = Array.from(
+      articleElement.querySelectorAll('[data-zdf-translated], .zdf-translated, .zdf-translation-container')
+    ).filter(el => {
+      const r = el.getBoundingClientRect();
+      return r && r.width > 8 && r.height > 8;
+    });
+
+    // 标题优先：支持 h1 在 article 外层（常见于新闻站）
+    let titleEl = articleElement.querySelector('h1');
+    if (!titleEl) {
+      const h1Candidates = Array.from(document.querySelectorAll('h1')).filter(h1 => {
+        const r = h1.getBoundingClientRect();
+        if (!r || r.width < 120 || r.height < 20) return false;
+        const centerX = r.left + r.width / 2;
+        const overlapX = centerX >= rootRect.left - 120 && centerX <= rootRect.right + 120;
+        const nearY = r.top <= rootRect.top + 220 && r.bottom >= rootRect.top - 520;
+        return overlapX && nearY;
+      });
+      if (h1Candidates.length > 0) {
+        titleEl = h1Candidates.sort((a, b) => b.getBoundingClientRect().width - a.getBoundingClientRect().width)[0];
+      }
+    }
+
+    const titleTop = titleEl ? titleEl.getBoundingClientRect().top : rootRect.top;
+    const startY = Math.min(rootRect.top, titleTop) - 28; // 给标题额外安全边距，避免截断
+
+    // 结束位置：取正文节点真实底部，避免最后一段被截
+    const contentNodes = Array.from(articleElement.querySelectorAll(
+      'h1,h2,h3,h4,h5,h6,p,li,blockquote,pre,figure,img,video,table,ul,ol,.zdf-translated,[data-zdf-translated]'
+    )).filter(el => {
+      if (!el || el.closest('nav,header,footer,aside,.sidebar,.menu')) return false;
+      const r = el.getBoundingClientRect();
+      return r && r.width > 10 && r.height > 8;
+    });
+
+    // 结束位置：按“正文连续流”计算，避免把下篇文章截进来
+    let endY = rootRect.bottom + 72;
+    if (contentNodes.length > 0) {
+      const titleRect = titleEl ? titleEl.getBoundingClientRect() : null;
+      const flowCenterX = titleRect
+        ? (titleRect.left + titleRect.right) / 2
+        : (rootRect.left + rootRect.right) / 2;
+
+      const flowNodes = contentNodes
+        .map(el => ({ el, r: el.getBoundingClientRect() }))
+        .filter(({ r }) => {
+          if (!r || r.bottom < startY || r.height < 8 || r.width < 16) return false;
+          const overlapCenter = flowCenterX >= r.left - 40 && flowCenterX <= r.right + 40;
+          const wideEnough = r.width >= Math.max(220, rootRect.width * 0.35);
+          return overlapCenter || wideEnough;
+        })
+        .sort((a, b) => a.r.top - b.r.top);
+
+      if (flowNodes.length > 0) {
+        let lastBottom = flowNodes[0].r.bottom;
+        for (let i = 1; i < flowNodes.length; i++) {
+          const r = flowNodes[i].r;
+          const gap = r.top - lastBottom;
+          // 出现明显断层，视为正文结束（下篇文章/推荐区常见）
+          if (gap > 220) break;
+          lastBottom = Math.max(lastBottom, r.bottom);
+        }
+        endY = lastBottom + 64;
+      } else {
+        endY = Math.max(...contentNodes.map(el => el.getBoundingClientRect().bottom)) + 64;
+      }
+    }
+
+    // 双语模式下：优先以最后翻译段作为正文结束锚点
+    if (translatedNodes.length > 0) {
+      const translatedBottom = Math.max(...translatedNodes.map(el => el.getBoundingClientRect().bottom));
+      endY = Math.min(endY, translatedBottom + 72);
+    }
+
+    // 截断到“正文之后的分界块”之前（避免把相关文章/评论区截进来）
+    const boundarySelectors = [
+      '.related', '.related-posts', '.related-articles', '.recommend', '.recommendation',
+      '.more-articles', '.also-read', '.read-more', '.read-next',
+      '.comments', '.comment-section', '#comments', '#disqus_thread',
+      '.footer', 'footer'
+    ];
+
+    let boundaryTop = Infinity;
+    for (const sel of boundarySelectors) {
+      articleElement.querySelectorAll(sel).forEach(el => {
+        const r = el.getBoundingClientRect();
+        if (!r || r.height < 20) return;
+        if (r.top > startY + 120 && r.top < boundaryTop) boundaryTop = r.top;
+      });
+    }
+    if (Number.isFinite(boundaryTop)) {
+      endY = Math.min(endY, boundaryTop - 10);
+    }
+
+    // 限制到文章容器附近，防止过长
+    endY = Math.min(endY, rootRect.bottom + 120);
+
+    // 左右边界：按真实内容边界裁剪，删除外侧空白（保留少量边距）
+    let left = Math.max(0, rootRect.left);
+    let right = rootRect.right;
+
+    const lrRects = contentNodes
+      .map(el => el.getBoundingClientRect())
+      .filter(r => r && r.bottom >= startY && r.top <= endY && r.width > 30 && r.height > 8);
+
+    if (titleEl) {
+      const tr = titleEl.getBoundingClientRect();
+      if (tr && tr.width > 80 && tr.height > 16) lrRects.push(tr);
+    }
+
+    if (lrRects.length > 0) {
+      const minLeft = Math.min(...lrRects.map(r => r.left));
+      const maxRight = Math.max(...lrRects.map(r => r.right));
+      const docRight = Math.max(document.documentElement.clientWidth, document.documentElement.scrollWidth);
+
+      left = Math.max(0, minLeft - 16);
+      right = Math.min(docRight, maxRight + 16);
+
+      // 避免被异常节点压得太窄
+      const minWidth = 420;
+      if (right - left < minWidth) {
+        const mid = (left + right) / 2;
+        left = Math.max(0, mid - minWidth / 2);
+        right = Math.min(docRight, mid + minWidth / 2);
+      }
+    }
+
+    // 保底与边界修正
+    const top = Math.max(0, Math.min(startY, endY - 50));
+    if (endY <= top + 20) endY = top + Math.max(260, rootRect.height * 0.7);
+    const width = Math.max(50, right - left);
+    const height = Math.max(50, endY - top);
+
+    return { left, top, width, height };
+  }
+
+  // 创建干净的文章容器（克隆文章内容，排除所有非文章元素）
+  function createCleanArticleContainer(articleElement) {
+    const container = document.createElement('div');
+    container.id = 'zdf-capture-container';
+    container.style.cssText = `
+      position: fixed;
+      left: -99999px;
+      top: 0;
+      width: 800px;
+      max-width: 800px;
+      background: #ffffff;
+      padding: 40px 50px;
+      font-family: -apple-system, "PingFang SC", "SF Pro Text", "Segoe UI", "Microsoft YaHei", sans-serif;
+      line-height: 1.8;
+      color: #333;
+      z-index: -1;
+      overflow: visible;
+    `;
+
+    // 1. 深克隆整个文章区域
+    const clonedArticle = articleElement.cloneNode(true);
+
+    // 2. 从克隆中移除所有不需要的内容
+
+    // 2a. 移除明确的非文章区域
+    const removeSelectors = [
+      // 导航、侧边栏、页脚
+      'nav', 'aside', 'footer', 'header',
+      '.sidebar', '.side-bar', '.side_bar', '[class*="sidebar"]', '[id*="sidebar"]',
+      '.nav', '.navigation', '.menu', '.breadcrumb',
+      // 评论区
+      '.comments', '.comment-section', '.comment-list', '#comments', '#disqus_thread',
+      '[class*="comment"]', '[id*="comment"]',
+      // 相关文章、推荐
+      '.related', '.related-posts', '.related-articles', '.recommend',
+      '.more-articles', '.also-read', '.read-more', '.read-next',
+      '[class*="related"]', '[class*="recommend"]',
+      // 分享、社交
+      '.share', '.social', '.social-share', '.share-buttons', '.sharing',
+      '[class*="share"]', '[class*="social"]',
+      // 广告（全面覆盖）
+      '.ad', '.ads', '.adsbygoogle', '.advertisement', '.advertorial',
+      '.ad-container', '.ad-wrapper', '.ad-slot', '.ad-banner', '.ad-block',
+      '.ad-placement', '.ad-unit', '.ad-zone', '.ad-box', '.ad-label',
+      '[class*="ad-container"]', '[class*="ad-wrapper"]', '[class*="ad-slot"]',
+      '[class*="ad-banner"]', '[class*="ad-block"]', '[class*="ad-placement"]',
+      '[id*="ad-"]', '[id*="ad_"]', '[id*="ads-"]', '[id*="ads_"]',
+      '[data-ad]', '[data-ads]', '[data-ad-slot]', '[data-ad-unit]',
+      'ins.adsbygoogle', 'ins[class*="ads"]',
+      '.dfp-ad', '.google-ad', '[class*="doubleclick"]',
+      '.sponsored', '.sponsor', '.promotion', '.promo',
+      '[class*="sponsor"]', '[class*="promo"]',
+      // 订阅、Newsletter
+      '.newsletter', '.subscribe', '.subscription', '.signup',
+      '[class*="newsletter"]', '[class*="subscribe"]',
+      // 其他非内容
+      '.tags', '.tag-list', '.post-tags',
+      '.author-bio', '.author-box', '.about-author',
+      'script', 'style', 'iframe', 'noscript',
+      // 固定定位的元素（悬浮条、cookie通知等）
+      '[style*="position: fixed"]', '[style*="position:fixed"]',
+    ];
+
+    for (const sel of removeSelectors) {
+      try {
+        clonedArticle.querySelectorAll(sel).forEach(el => el.remove());
+      } catch(e) { /* 选择器语法错误则跳过 */ }
+    }
+
+    // 2b. 通过启发式检测移除广告和非内容块
+    clonedArticle.querySelectorAll('div, section, aside, ins, span').forEach(el => {
+      if (isAdElement(el)) {
+        el.remove();
+        return;
+      }
+      // 检测「文中插入广告」：短文本 + 有链接 + 非文章段落特征
+      if (el.tagName === 'DIV' || el.tagName === 'SECTION') {
+        const text = (el.innerText || '').trim();
+        const links = el.querySelectorAll('a');
+        const hasTranslation = el.querySelector('[data-zdf-translated], .zdf-translation-container');
+        // 没有被翻译的内容 + 短文本 + 多链接 = 可能是广告/推广
+        if (!hasTranslation && text.length < 300 && links.length >= 2) {
+          const linkTextRatio = Array.from(links).reduce((s, a) => s + (a.textContent || '').length, 0) / Math.max(text.length, 1);
+          if (linkTextRatio > 0.5) {
+            el.remove();
+            return;
+          }
+        }
+      }
+    });
+
+    // 2c. 移除追踪像素和广告图片
+    clonedArticle.querySelectorAll('img').forEach(img => {
+      const src = img.src || img.dataset.src || '';
+      const w = parseInt(img.getAttribute('width')) || img.naturalWidth || 0;
+      const h = parseInt(img.getAttribute('height')) || img.naturalHeight || 0;
+      if ((w <= 2 && h <= 2) ||
+          src.includes('pixel') || src.includes('tracker') || src.includes('beacon') ||
+          src.includes('doubleclick') || src.includes('googlesyndication') ||
+          src.includes('facebook.com/tr') || src.includes('analytics')) {
+        img.remove();
+      }
+    });
+
+    // 3. 确定文章正文的上下边界
+    //    上边界：第一个 h1 或第一个被翻译的元素
+    //    下边界：最后一个被翻译的元素之后，允许再包含紧邻的少量同级元素（同段落收尾），
+    //            但在遇到明显的分界元素时停止
+
+    // 提取 h1 标题
+    const h1 = clonedArticle.querySelector('h1');
+
+    // 提取元信息
+    const metaInfo = extractArticleMeta(articleElement);
+    if (h1) {
+      const titleClone = document.createElement('h1');
+      titleClone.textContent = h1.textContent;
+      titleClone.style.cssText = `
+        font-size: 28px;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin: 0 0 8px 0;
+        line-height: 1.4;
+      `;
+      container.appendChild(titleClone);
+    }
+
+    if (metaInfo) {
+      const metaDiv = document.createElement('div');
+      metaDiv.style.cssText = `
+        font-size: 13px;
+        color: #888;
+        margin: 0 0 24px 0;
+        line-height: 1.6;
+        padding-bottom: 16px;
+        border-bottom: 1px solid #eee;
+      `;
+      metaDiv.textContent = metaInfo;
+      container.appendChild(metaDiv);
+    }
+
+    // 4. 收集正文内容节点
+    //    遍历克隆后的文章，只保留从标题到最后翻译元素之间的内容
+    const allNodes = clonedArticle.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, ol, ul, blockquote, figure, img, pre, table, .zdf-translation-container, [data-zdf-translated]');
+    
+    // 找到第一个和最后一个翻译元素在克隆DOM中的位置
+    const translatedInClone = clonedArticle.querySelectorAll('[data-zdf-translated]');
+    const firstTranslated = translatedInClone.length > 0 ? translatedInClone[0] : null;
+    const lastTranslated = translatedInClone.length > 0 ? translatedInClone[translatedInClone.length - 1] : null;
+
+    const seen = new Set();
+    let reachedStart = !firstTranslated; // 如果没有翻译元素，从头开始
+    let passedEnd = false;
+    let trailingCount = 0; // 最后翻译元素之后允许的尾部元素数
+    const MAX_TRAILING = 2; // 最多允许2个紧跟的段落（可能是同段落的收尾）
+
+    for (const el of allNodes) {
+      // 跳过 h1（已单独处理）
+      if (el.tagName === 'H1') {
+        reachedStart = true;
+        continue;
+      }
+
+      // 等待到达文章起始位置
+      if (!reachedStart) {
+        if (el === firstTranslated || el.contains(firstTranslated) || (firstTranslated && firstTranslated.contains(el))) {
+          reachedStart = true;
+        } else {
+          continue;
+        }
+      }
+
+      // 检查是否已过文章末尾
+      if (passedEnd) {
+        trailingCount++;
+        if (trailingCount > MAX_TRAILING) break;
+        // 尾部元素必须有实质内容且已被翻译，否则停止
+        const hasTranslation = el.hasAttribute('data-zdf-translated') || el.querySelector('[data-zdf-translated]');
+        if (!hasTranslation) break;
+      }
+
+      // 标记是否到达末尾
+      if (lastTranslated && (el === lastTranslated || el.contains(lastTranslated) || lastTranslated.contains(el))) {
+        passedEnd = true;
+      }
+
+      // 避免重复
+      let isDuplicate = false;
+      for (const s of seen) {
+        if (s.contains(el) || el.contains(s)) {
+          isDuplicate = true;
+          break;
+        }
+      }
+      if (isDuplicate) continue;
+
+      // 跳过空元素
+      const text = (el.innerText || '').trim();
+      if (!text && !el.querySelector('img')) continue;
+
+      // 再次检查广告
+      if (isAdElement(el)) continue;
+
+      const clone = el.cloneNode(true);
+
+      // 清理克隆内的残余垃圾
+      clone.querySelectorAll('script, style, iframe, noscript, ins.adsbygoogle').forEach(j => j.remove());
+
+      // 图片样式
+      clone.querySelectorAll('img').forEach(img => {
+        img.style.maxWidth = '100%';
+        img.style.height = 'auto';
+        img.style.display = 'block';
+        img.style.margin = '16px auto';
+        img.style.borderRadius = '8px';
+        if (img.dataset.src && (!img.src || !img.src.startsWith('http'))) img.src = img.dataset.src;
+        if (img.dataset.originalSrc) img.src = img.dataset.originalSrc;
+      });
+
+      // 翻译样式
+      clone.querySelectorAll('.zdf-translated').forEach(t => {
+        t.style.cssText = `
+          color: ${config.style.translationColor};
+          font-size: ${config.style.translationSize};
+          margin-top: 8px;
+          padding: 10px 0 10px 14px;
+          border-left: 3px solid #3b82f6;
+          background: linear-gradient(to right, rgba(59, 130, 246, 0.06), transparent);
+          line-height: ${config.style.lineSpacing};
+        `;
+      });
+
+      // 标题样式
+      const tag = el.tagName.toLowerCase();
+      if (['h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)) {
+        clone.style.fontSize = ({ h2: '24px', h3: '20px', h4: '18px', h5: '16px', h6: '15px' })[tag];
+        clone.style.fontWeight = '600';
+        clone.style.color = '#1a1a1a';
+        clone.style.margin = '28px 0 12px 0';
+      }
+      if (tag === 'p') {
+        clone.style.margin = '12px 0';
+        clone.style.lineHeight = '1.8';
+      }
+
+      container.appendChild(clone);
+      seen.add(el);
+    }
+
+    document.body.appendChild(container);
+    return { container, cleanup: () => container.remove() };
+  }
+
+  // 提取文章元信息（作者、发布时间、编辑时间）
+  function extractArticleMeta(articleElement) {
+    const parts = [];
+    const seen = new Set();
+
+    // 从原始页面搜索元信息（不是克隆的，避免被清理掉）
+    const metaSelectors = [
+      '[rel="author"]', '.author', '.byline', '.by-author', '[itemprop="author"]',
+      '.post-author', '.entry-author', '.article-author',
+      'time', '[datetime]', '.date', '.publish-date', '.post-date', '.entry-date',
+      '.article-date', '[itemprop="datePublished"]', '.created-date',
+      '[itemprop="dateModified"]', '.modified-date', '.updated-date', '.update-time', '.last-modified',
+    ];
+
+    // 搜索范围：文章内 + 文章的父容器（元信息有时在文章标签外面）
+    const searchRoots = [articleElement];
+    if (articleElement.parentElement && articleElement.parentElement !== document.body) {
+      searchRoots.push(articleElement.parentElement);
+    }
+
+    // 也查找 h1 附近
+    const h1 = articleElement.querySelector('h1') || document.querySelector('h1');
+    if (h1 && h1.parentElement) {
+      searchRoots.push(h1.parentElement);
+    }
+
+    for (const root of searchRoots) {
+      for (const sel of metaSelectors) {
+        try {
+          root.querySelectorAll(sel).forEach(el => {
+            if (el.closest('nav, aside, .comments, .sidebar')) return;
+            const text = (el.textContent || '').trim();
+            if (text && text.length > 0 && text.length < 200 && !seen.has(text)) {
+              seen.add(text);
+              parts.push(text);
+            }
+          });
+        } catch(e) {}
+      }
+    }
+
+    // 兜底：h1后面的短文本兄弟
+    if (parts.length === 0 && h1) {
+      let sibling = h1.nextElementSibling;
+      for (let i = 0; i < 3 && sibling; i++) {
+        const text = (sibling.textContent || '').trim();
+        const tag = sibling.tagName.toLowerCase();
+        if (text.length > 0 && text.length < 150 && !['p', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)) {
+          if (/\d{4}[-/]\d{1,2}[-/]\d{1,2}|author|by\s|编辑|作者|发布|更新|modified|published|ago|前|date|time/i.test(text)) {
+            parts.push(text);
+            break;
+          }
+        }
+        sibling = sibling.nextElementSibling;
+      }
+    }
+
+    return parts.length > 0 ? parts.join('  ·  ') : null;
+  }
+
+  // 检测是否为广告元素（向上检查5层祖先）
+  function isAdElement(el) {
+    // 检查元素本身及其祖先（最多5层）
+    let node = el;
+    for (let depth = 0; depth < 5 && node && node !== document.body; depth++) {
+      const id = (node.id || '').toLowerCase();
+      const cls = (node.className || '').toString().toLowerCase();
+      const tag = node.tagName.toLowerCase();
+
+      // 广告关键词匹配
+      const adKeywords = [
+        'adsbygoogle', 'ad-container', 'ad-wrapper', 'ad-slot', 'ad-banner',
+        'ad-block', 'ad-placement', 'ad-unit', 'ad-zone', 'ad-box', 'ad-label',
+        'advertisement', 'advertorial', 'sponsored', 'sponsor',
+        'promo', 'promotion', 'dfp-ad', 'google-ad', 'doubleclick',
+        'outbrain', 'taboola', 'mgid', 'revcontent', 'content-ad',
+      ];
+      for (const kw of adKeywords) {
+        if (id.includes(kw) || cls.includes(kw)) return true;
+      }
+
+      // data-ad 属性
+      if (node.hasAttribute && (node.hasAttribute('data-ad') || node.hasAttribute('data-ad-slot') ||
+          node.hasAttribute('data-ad-unit') || node.hasAttribute('data-ads'))) {
+        return true;
+      }
+
+      // ins 标签（AdSense）
+      if (tag === 'ins' && (cls.includes('ads') || node.hasAttribute('data-ad-client'))) return true;
+
+      node = node.parentElement;
+    }
+
+    return false;
+  }
+
+  // 查找文章主体元素（兼容：已翻译双语页 + 未翻译原文页）
+  function findArticleElement() {
+    // 先尝试：基于翻译标记定位（双语模式更准）
+    const translatedEls = Array.from(document.querySelectorAll('[data-zdf-translated], .zdf-translation-container, .zdf-translated')).filter(el => {
+      if (!el || el.closest('nav,header,footer,aside,[role="navigation"],.sidebar,.menu')) return false;
+      const rect = el.getBoundingClientRect();
+      if (!rect || rect.width < 50 || rect.height < 14) return false;
+      const text = (el.innerText || '').trim();
+      return text.length >= 10;
+    });
+
+    if (translatedEls.length > 0) {
+      // 先按页面位置锁定“第一篇正文”的翻译节点（修复彭博同页多篇时命中最后一篇）
+      const sortedTranslated = translatedEls
+        .slice()
+        .sort((a, b) => {
+          const ar = a.getBoundingClientRect();
+          const br = b.getBoundingClientRect();
+          return ar.top - br.top;
+        });
+
+      const firstTranslatedEl = sortedTranslated[0];
+      const strictContainer = firstTranslatedEl.closest(
+        'article, [role="article"], .article-content, .article-body, .post-content, .entry-content, .story-body, .post-body'
+      );
+      if (strictContainer && strictContainer !== document.body && strictContainer !== document.documentElement) {
+        return strictContainer;
+      }
+
+      // 回退：在常见容器中找与首个翻译节点最近的容器
+      const containerSelector = 'article, main, [role="main"], .post-content, .entry-content, .article-content, .article-body, .post-body, .story-body, .content-body, .content, #content, section';
+      const candidateSet = new Set();
+      sortedTranslated.forEach(el => {
+        const c = el.closest(containerSelector);
+        if (c && c !== document.body && c !== document.documentElement) candidateSet.add(c);
+      });
+
+      const anchorRect = firstTranslatedEl.getBoundingClientRect();
+      const anchorTop = anchorRect.top;
+      const anchorCenterX = anchorRect.left + anchorRect.width / 2;
+
+      let bestContainer = null;
+      let bestScore = -1;
+      candidateSet.forEach(c => {
+        const rect = c.getBoundingClientRect();
+        if (!rect || rect.width < 220 || rect.height < 220) return;
+
+        const translatedCount = c.querySelectorAll('[data-zdf-translated], .zdf-translated, .zdf-translation-container').length;
+        const paraCount = c.querySelectorAll('p').length;
+        const textLen = Math.min((c.innerText || '').trim().length, 12000);
+        const areaPenalty = Math.max(0, (rect.width * rect.height - 1_400_000) / 140000);
+
+        const topDistancePenalty = Math.abs(rect.top - anchorTop) * 0.5;
+        const centerX = rect.left + rect.width / 2;
+        const xDistancePenalty = Math.abs(centerX - anchorCenterX) * 0.15;
+
+        const score = translatedCount * 22 + paraCount * 8 + textLen / 50 - areaPenalty - topDistancePenalty - xDistancePenalty;
+        if (score > bestScore) {
+          bestScore = score;
+          bestContainer = c;
+        }
+      });
+
+      if (bestContainer) return bestContainer;
+
+      if (translatedEls.length === 1) {
+        return translatedEls[0].closest('article, main, [role="main"], .content, section') || translatedEls[0].parentElement;
+      }
+    }
+
+    // 再尝试：通用文章容器（原文模式）
+    const selectors = [
+      'article',
+      '[role="article"]',
+      '.post-content', '.entry-content', '.article-content', '.article-body',
+      '.post-body', '.story-body', '.content-body',
+      'main', '[role="main"]',
+      '.content', '#content',
+    ];
+
+    const scoreElement = (el) => {
+      if (!el || el.closest('nav,header,footer,aside')) return -1;
+      const rect = el.getBoundingClientRect();
+      if (!rect || rect.width < 200 || rect.height < 200) return -1;
+      const text = (el.innerText || '').trim();
+      const pCount = el.querySelectorAll('p').length;
+      const headingCount = el.querySelectorAll('h1,h2,h3').length;
+      const textScore = Math.min(text.length, 6000) / 20;
+      return textScore + pCount * 18 + headingCount * 12 + rect.height * 0.08;
+    };
+
+    let best = null;
+    let bestScore = -1;
+    for (const selector of selectors) {
+      const elements = document.querySelectorAll(selector);
+      for (const el of elements) {
+        const score = scoreElement(el);
+        if (score > bestScore) {
+          best = el;
+          bestScore = score;
+        }
+      }
+    }
+
+    if (best) return best;
+
+    // 最后兜底：body 下文本最多的可见子容器
+    const candidates = Array.from(document.body.children).filter(el => {
+      const tag = el.tagName.toLowerCase();
+      if (['script', 'style', 'nav', 'header', 'footer', 'aside'].includes(tag)) return false;
+      const rect = el.getBoundingClientRect();
+      return rect.width > 200 && rect.height > 200;
+    });
+
+    if (candidates.length === 0) return null;
+    return candidates.reduce((bestEl, el) => {
+      const bestLen = (bestEl?.innerText || '').length;
+      const len = (el.innerText || '').length;
+      return len > bestLen ? el : bestEl;
+    }, candidates[0]);
+  }
+
+  // 找两个元素的最小公共祖先
+  function findCommonAncestor(el1, el2) {
+    const ancestors = new Set();
+    let node = el1;
+    while (node) {
+      ancestors.add(node);
+      node = node.parentElement;
+    }
+    node = el2;
+    while (node) {
+      if (ancestors.has(node)) return node;
+      node = node.parentElement;
+    }
+    return document.body;
+  }
+
+  // 创建截图按钮（支持：未翻译截原文 / 已翻译截双语）
+  function createCaptureButton() {
+    if (document.getElementById('zdf-capture-btn')) return;
+
+    const btn = document.createElement('div');
+    btn.id = 'zdf-capture-btn';
+    btn.className = 'zdf-capture-btn';
+    btn.innerHTML = `
+      <svg class="zdf-capture-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M4 7.5h3l1.2-2h7.6l1.2 2H20a1.8 1.8 0 0 1 1.8 1.8v8.7A1.8 1.8 0 0 1 20 19.8H4A1.8 1.8 0 0 1 2.2 18V9.3A1.8 1.8 0 0 1 4 7.5Z"/>
+        <circle cx="12" cy="13" r="3.6"/>
+      </svg>
+    `;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      captureArticleScreenshot();
+    });
+
+    document.body.appendChild(btn);
+    updateCaptureButtonState();
+  }
+
+  function updateCaptureButtonState() {
+    const btn = document.getElementById('zdf-capture-btn');
+    if (!btn || btn.classList.contains('zdf-capture-loading')) return;
+    const tip = translationActive ? '截图双语' : '截图原文';
+    btn.title = translationActive ? '截图双语文章' : '截图原文文章';
+    btn.setAttribute('data-tip', tip);
+  }
+
+  // 修改 updateFloatingButtonState：始终显示截图按钮，按状态动态切换模式
+  const _originalUpdateState = updateFloatingButtonState;
+  updateFloatingButtonState = function() {
+    _originalUpdateState();
+    createCaptureButton();
+    updateCaptureButtonState();
+  };
+
   // 页面加载完成后创建悬浮按钮
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', createFloatingButton);

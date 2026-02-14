@@ -21,6 +21,14 @@ const MIN_REQUEST_INTERVAL_BY_SERVICE = {
   openai: 60
 };
 
+self.addEventListener('unhandledrejection', (event) => {
+  console.error('[ZDFTranslate] unhandledrejection:', event?.reason || event);
+});
+
+self.addEventListener('error', (event) => {
+  console.error('[ZDFTranslate] worker error:', event?.message || event);
+});
+
 // 通用请求包装器：支持限流和重试
 async function fetchWithRetry(url, options, serviceName, maxRetries = 2) {
   // 限流：确保同一服务请求间隔
@@ -94,61 +102,94 @@ const DEFAULT_MODELS = {
 
 // ... (省略部分未变代码，保持原样逻辑) ...
 
-// 安装时初始化
-chrome.runtime.onInstalled.addListener(async (details) => {
-  // Migrate existing config on update (FIX: Ensure targetLang defaults to zh-CN)
-  if (details.reason === 'update') {
-    const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
-    
-    if (zdfConfig) {
-      let needsUpdate = false;
-      
-      // Fix target language if it's defaulting to English
-      if (!zdfConfig.targetLang || zdfConfig.targetLang === 'en') {
-        zdfConfig.targetLang = 'zh-CN';
-        needsUpdate = true;
-      }
-      
-      // Ensure selectedModels exists
-      if (!zdfConfig.selectedModels) {
-        zdfConfig.selectedModels = { ...DEFAULT_MODELS };
-        needsUpdate = true;
-      }
-      
-      // Update config with fixes
-      if (needsUpdate) {
-        await chrome.storage.sync.set({ zdfConfig });
-      }
+function ensureContextMenu() {
+  try {
+    chrome.contextMenus.removeAll(() => {
+      chrome.contextMenus.create({
+        id: 'zdf-translate-selection',
+        title: '使用 ZDFTranslate 翻译',
+        contexts: ['selection']
+      }, () => {
+        const err = chrome.runtime.lastError;
+        if (err) console.warn('[ZDFTranslate] contextMenus.create:', err.message);
+      });
+    });
+  } catch (e) {
+    console.warn('[ZDFTranslate] ensureContextMenu failed:', e);
+  }
+}
+
+function getDefaultConfig() {
+  return {
+    enabled: true,
+    targetLang: 'zh-CN',
+    sourceLang: 'auto',
+    displayMode: 'bilingual',
+    translationService: 'libretranslate',
+    selectedModels: { ...DEFAULT_MODELS },
+    apiKeys: {},
+    excludedSites: [],
+    style: {
+      translationColor: '#111111',
+      translationSize: '0.95em',
+      lineSpacing: '1.6',
+      backgroundHighlight: false
     }
+  };
+}
+
+// 安装时初始化（加固：避免异步异常导致 SW 无效）
+chrome.runtime.onInstalled.addListener((details) => {
+  try {
+    if (details.reason === 'install') {
+      chrome.storage.sync.set({ zdfConfig: getDefaultConfig() }, () => {
+        if (chrome.runtime.lastError) {
+          console.warn('[ZDFTranslate] init default config failed:', chrome.runtime.lastError.message);
+        }
+      });
+      ensureContextMenu();
+      return;
+    }
+
+    if (details.reason === 'update') {
+      chrome.storage.sync.get(['zdfConfig'], (res) => {
+        try {
+          const cfg = res?.zdfConfig || {};
+          let needsUpdate = false;
+
+          if (!cfg.targetLang || cfg.targetLang === 'en') {
+            cfg.targetLang = 'zh-CN';
+            needsUpdate = true;
+          }
+
+          if (!cfg.selectedModels) {
+            cfg.selectedModels = { ...DEFAULT_MODELS };
+            needsUpdate = true;
+          }
+
+          if (needsUpdate) {
+            chrome.storage.sync.set({ zdfConfig: cfg }, () => {
+              if (chrome.runtime.lastError) {
+                console.warn('[ZDFTranslate] migrate config failed:', chrome.runtime.lastError.message);
+              }
+            });
+          }
+        } catch (e) {
+          console.warn('[ZDFTranslate] update migration failed:', e);
+        }
+      });
+      ensureContextMenu();
+      return;
+    }
+
+    ensureContextMenu();
+  } catch (e) {
+    console.error('[ZDFTranslate] onInstalled failed:', e);
   }
-  
-  if (details.reason === 'install') {
-    // 默认配置
-    const DEFAULT_CONFIG = {
-      enabled: true,
-      targetLang: 'zh-CN',
-      sourceLang: 'auto',
-      displayMode: 'bilingual',
-      translationService: 'libretranslate',
-      selectedModels: { ...DEFAULT_MODELS },
-      apiKeys: {}, // 避免覆盖
-      excludedSites: [],
-      style: {
-        translationColor: '#111111',
-        translationSize: '0.95em',
-        lineSpacing: '1.6',
-        backgroundHighlight: false
-      }
-    };
-    chrome.storage.sync.set({ zdfConfig: DEFAULT_CONFIG });
-  }
-  
-  // Create context menu
-  chrome.contextMenus.create({
-    id: 'zdf-translate-selection',
-    title: '使用 ZDFTranslate 翻译',
-    contexts: ['selection']
-  });
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  ensureContextMenu();
 });
 
 // FIX: Handle context menu clicks (was missing!)

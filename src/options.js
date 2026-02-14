@@ -114,6 +114,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('translationSize').value = config.style?.translationSize || '0.95em';
   document.getElementById('lineSpacing').value = config.style?.lineSpacing || '1.6';
   document.getElementById('backgroundHighlight').checked = config.style?.backgroundHighlight || false;
+  document.getElementById('showWatermark').checked = config.style?.showWatermark !== false; // 默认开启
   document.getElementById('excludedSites').value = (config.excludedSites || []).join('\n');
 
   // 初始化所有模型选择器
@@ -286,7 +287,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           translationColor: document.getElementById('translationColor').value,
           translationSize: document.getElementById('translationSize').value,
           lineSpacing: document.getElementById('lineSpacing').value,
-          backgroundHighlight: document.getElementById('backgroundHighlight').checked
+          backgroundHighlight: document.getElementById('backgroundHighlight').checked,
+          showWatermark: document.getElementById('showWatermark').checked
         },
         excludedSites: document.getElementById('excludedSites').value
           .split('\n')
@@ -329,7 +331,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           translationColor: '#111111',
           translationSize: '0.95em',
           lineSpacing: '1.6',
-          backgroundHighlight: false
+          backgroundHighlight: false,
+          showWatermark: true
         }
       };
       

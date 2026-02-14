@@ -92,12 +92,13 @@ header {
   width: 72px;
   height: 72px;
   margin: 0 auto 20px;
-  background: linear-gradient(135deg, #60a5fa, var(--primary-600));
+  background: #ffffff;
   border-radius: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.28);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  box-shadow: 0 8px 24px rgba(37, 99, 235, 0.14);
 }
 
 .logo-container svg {
@@ -105,6 +106,14 @@ header {
   height: 40px;
   color: #fff;
 }
+
+.logo-mark {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+}
+
+/* logo-wordmark removed */
 
 header h1 {
   font-size: 28px;
