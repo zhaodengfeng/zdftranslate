@@ -64,11 +64,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   updateButtonState();
   
-  // 初始化UI
-  sourceLang.value = config.sourceLang || 'auto';
-  targetLang.value = config.targetLang;
-  displayMode.value = config.displayMode;
-  translationService.value = config.translationService;
+  // 初始化UI（带兜底，避免配置值与当前选项不一致导致空白）
+  sourceLang.value = sourceLang.querySelector(`option[value="${config.sourceLang}"]`) ? config.sourceLang : 'auto';
+  targetLang.value = targetLang.querySelector(`option[value="${config.targetLang}"]`) ? config.targetLang : 'zh-CN';
+  displayMode.value = displayMode.querySelector(`option[value="${config.displayMode}"]`) ? config.displayMode : 'bilingual';
+
+  const serviceValue = config.translationService || 'libretranslate';
+  if (translationService.querySelector(`option[value="${serviceValue}"]`)) {
+    translationService.value = serviceValue;
+  } else {
+    translationService.value = 'libretranslate';
+    await updateConfig({ translationService: 'libretranslate' });
+  }
 
   // 事件监听（其他）
   sourceLang.addEventListener('change', async () => {
@@ -193,10 +200,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 加载配置
   function loadConfig() {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       chrome.runtime.sendMessage({ action: 'getConfig' }, (config) => {
         if (chrome.runtime.lastError) {
-          reject(new Error(chrome.runtime.lastError.message));
+          console.warn('loadConfig failed:', chrome.runtime.lastError.message);
+          resolve({});
         } else {
           resolve(config || {});
         }
@@ -213,12 +221,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         chrome.runtime.sendMessage({
           action: 'saveConfig',
           config: newConfig
-        }, () => {
+        }, (response) => {
           if (chrome.runtime.lastError) {
             reject(new Error(chrome.runtime.lastError.message));
-          } else {
-            resolve();
+            return;
           }
+          if (response && response.success === false) {
+            reject(new Error(response.error || '保存失败'));
+            return;
+          }
+          resolve();
         });
       });
     } catch (error) {

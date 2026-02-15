@@ -1623,11 +1623,12 @@
 
     const canvas = await html2canvas(document.body, {
       useCORS: true,
-      allowTaint: true,
+      allowTaint: false,
       foreignObjectRendering: false,
       scale: captureScale,
       backgroundColor: '#ffffff',
       logging: false,
+      imageTimeout: 8000,
       x: Math.max(0, Math.floor(window.scrollX + bounds.left)),
       y: Math.max(0, Math.floor(window.scrollY + bounds.top)),
       width: Math.max(1, Math.ceil(bounds.width)),
@@ -1644,13 +1645,6 @@
         });
       }
     });
-
-    // 检查 canvas 是否被污染
-    try {
-      canvas.getContext('2d').getImageData(0, 0, 1, 1);
-    } catch (e) {
-      throw new Error('CORS_ERROR: 页面包含跨域图片，无法导出。请尝试在浏览器设置中允许跨域图片，或使用系统截图工具。');
-    }
 
     const showWatermark = config.style?.showWatermark !== false;
     const watermarkHeight = showWatermark ? 170 : 0;

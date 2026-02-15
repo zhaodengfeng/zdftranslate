@@ -45,16 +45,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     appVersionEl.textContent = chrome.runtime.getManifest().version;
   }
 
-  // 加载当前配置
-  const config = await loadConfig();
-  
-  if (addBtn) {
-    addBtn.disabled = false;
-    addBtn.textContent = '➕ 添加自定义服务';
+  // 加载当前配置（兜底，避免页面卡死）
+  let config = {};
+  try {
+    config = await loadConfig();
+  } catch (e) {
+    console.error('loadConfig failed:', e);
+    config = {};
+  } finally {
+    if (addBtn) {
+      addBtn.disabled = false;
+      addBtn.textContent = '➕ 添加自定义服务';
+    }
   }
   
   // 更新 customServices
-  if (config.customServices) {
+  if (Array.isArray(config.customServices)) {
     customServices = config.customServices;
   }
   
@@ -401,7 +407,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         targetLang: 'zh-CN',
         sourceLang: 'auto',
         displayMode: 'bilingual',
-        translationService: 'kimi',
+        translationService: 'libretranslate',
         autoTranslateYouTube: true, // 默认开启
         autoEnableYouTubeCC: true, // 默认开启
         selectedModels: {
@@ -698,49 +704,58 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
   
+  async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 12000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { ...options, signal: controller.signal });
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status}${text ? `: ${text.slice(0, 120)}` : ''}`);
+      }
+      return response.json();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   // 通用 OpenAI 格式模型获取
   async function fetchGenericOpenAIModels(apiBaseUrl, apiKey) {
-    const baseUrl = apiBaseUrl.replace(/\/$/, '');
-    const response = await fetch(`${baseUrl}/models`, {
+    const baseUrl = apiBaseUrl.trim().replace(/\/$/, '');
+    const data = await fetchJsonWithTimeout(`${baseUrl}/models`, {
       headers: { 'Authorization': `Bearer ${apiKey}` }
     });
-    
-    if (!response.ok) throw new Error('Failed to fetch models');
-    
-    const data = await response.json();
-    return data.data
+
+    return (data.data || [])
       .map(m => ({ id: m.id, name: m.id }))
       .sort((a, b) => a.id.localeCompare(b.id));
   }
   
   // Anthropic 格式模型获取
   async function fetchAnthropicModels(apiBaseUrl, apiKey) {
-    const baseUrl = apiBaseUrl.replace(/\/$/, '');
-    const response = await fetch(`${baseUrl}/models`, {
+    const baseUrl = apiBaseUrl.trim().replace(/\/$/, '');
+    const data = await fetchJsonWithTimeout(`${baseUrl}/models`, {
       headers: { 
         'x-api-key': apiKey,
         'anthropic-version': '2023-06-01'
       }
     });
-    
-    if (!response.ok) throw new Error('Failed to fetch models');
-    
-    const data = await response.json();
-    return data.models
-      .map(m => ({ id: m.id, name: m.display_name || m.id }))
+
+    const list = Array.isArray(data?.data)
+      ? data.data
+      : (Array.isArray(data?.models) ? data.models : []);
+
+    return list
+      .map(m => ({ id: m.id, name: m.display_name || m.name || m.id }))
       .sort((a, b) => a.id.localeCompare(b.id));
   }
 
   // OpenAI 模型列表
   async function fetchOpenAIModels(apiKey) {
     try {
-      const response = await fetch('https://api.openai.com/v1/models', {
+      const data = await fetchJsonWithTimeout('https://api.openai.com/v1/models', {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
-      
-      if (!response.ok) throw new Error('Failed to fetch models');
-      
-      const data = await response.json();
       return data.data
         .filter(m => m.id.includes('gpt'))
         .map(m => ({ id: m.id, name: m.id }))
@@ -754,13 +769,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // OpenRouter 模型列表
   async function fetchOpenRouterModels(apiKey) {
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/models', {
+      const data = await fetchJsonWithTimeout('https://openrouter.ai/api/v1/models', {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
-      
-      if (!response.ok) throw new Error('Failed to fetch models');
-      
-      const data = await response.json();
       return data.data
         .map(m => ({ id: m.id, name: m.name || m.id }))
         .sort((a, b) => a.id.localeCompare(b.id));
@@ -773,19 +784,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Kimi 模型列表
   async function fetchKimiModels(apiKey) {
     try {
-      const response = await fetch('https://api.moonshot.cn/v1/models', {
+      const data = await fetchJsonWithTimeout('https://api.moonshot.cn/v1/models', {
         method: 'GET',
         headers: { 
           'Authorization': `Bearer ${apiKey}`,
           'Content-Type': 'application/json'
         }
       });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch models: ${response.status}`);
-      }
-      
-      const data = await response.json();
       
       if (!data.data || !Array.isArray(data.data)) {
         console.error('Kimi API 返回格式错误:', data);
@@ -802,13 +807,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // DeepSeek 模型列表
   async function fetchDeepSeekModels(apiKey) {
     try {
-      const response = await fetch('https://api.deepseek.com/models', {
+      const data = await fetchJsonWithTimeout('https://api.deepseek.com/models', {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
-      
-      if (!response.ok) throw new Error('Failed to fetch models');
-      
-      const data = await response.json();
       return data.data.map(m => ({ id: m.id, name: m.id }));
     } catch (error) {
       console.error('DeepSeek API 错误:', error);
@@ -820,13 +821,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function fetchAliyunModels(apiKey) {
     try {
       // 阿里云百炼兼容 OpenAI API 格式
-      const response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/models', {
+      const data = await fetchJsonWithTimeout('https://dashscope.aliyuncs.com/compatible-mode/v1/models', {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
-      
-      if (!response.ok) throw new Error('Failed to fetch models');
-      
-      const data = await response.json();
       // 过滤出支持的模型
       return data.data
         .filter(m => m.id.startsWith('qwen') || m.id.startsWith('deepseek'))
@@ -840,14 +837,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 智谱清言模型列表
   async function fetchZhipuModels(apiKey) {
     try {
-      const response = await fetch('https://open.bigmodel.cn/api/paas/v4/models', {
-        headers: { 'Authorization': apiKey }
+      const data = await fetchJsonWithTimeout('https://open.bigmodel.cn/api/paas/v4/models', {
+        headers: { 'Authorization': `Bearer ${apiKey}` }
       });
-      
-      if (!response.ok) throw new Error('Failed to fetch models');
-      
-      const data = await response.json();
-      return data.data.map(m => ({ id: m.id, name: m.id }));
+      return (data.data || []).map(m => ({ id: m.id, name: m.id }));
     } catch (error) {
       console.error('智谱清言 API 错误:', error);
       return [];
@@ -901,12 +894,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       chrome.runtime.sendMessage({
         action: 'saveConfig',
         config: config
-      }, () => {
+      }, (response) => {
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message));
-        } else {
-          resolve();
+          return;
         }
+        if (response && response.success === false) {
+          reject(new Error(response.error || '保存失败'));
+          return;
+        }
+        resolve();
       });
     });
   }

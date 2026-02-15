@@ -102,6 +102,12 @@ const DEFAULT_MODELS = {
   deepseek: 'deepseek-chat'
 };
 
+function ensureApiKey(key, serviceName) {
+  if (!key || !String(key).trim()) {
+    throw new Error(`${serviceName} API key not configured`);
+  }
+}
+
 // ... (省略部分未变代码，保持原样逻辑) ...
 
 function ensureContextMenu() {
@@ -342,7 +348,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
   
   if (request.action === 'saveConfig') {
-      chrome.storage.sync.set({ zdfConfig: request.config }, () => sendResponse({ success: true }));
+      chrome.storage.sync.set({ zdfConfig: request.config }, () => {
+        if (chrome.runtime.lastError) {
+          sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        } else {
+          sendResponse({ success: true });
+        }
+      });
       return true;
   }
   
@@ -424,6 +436,7 @@ async function translateWithAliyun(text, targetLang, sourceLang) {
     const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
     const apiKey = zdfConfig?.apiKeys?.aliyun;
     const model = zdfConfig?.selectedModels?.aliyun || 'qwen-turbo';
+    ensureApiKey(apiKey, 'Aliyun');
     
     // Aliyun OpenAI Compatible
     const response = await fetchWithRetry(
@@ -446,6 +459,7 @@ async function translateWithZhipu(text, targetLang, sourceLang) {
     const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
     const apiKey = zdfConfig?.apiKeys?.zhipu;
     const model = zdfConfig?.selectedModels?.zhipu || 'glm-4-flash';
+    ensureApiKey(apiKey, 'Zhipu');
 
     const response = await fetchWithRetry(
         'https://open.bigmodel.cn/api/paas/v4/chat/completions',
@@ -467,6 +481,7 @@ async function translateWithOpenAI(text, targetLang, sourceLang) {
     const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
     const apiKey = zdfConfig?.apiKeys?.openai;
     const model = zdfConfig?.selectedModels?.openai || 'gpt-3.5-turbo';
+    ensureApiKey(apiKey, 'OpenAI');
 
     const response = await fetchWithRetry(
         'https://api.openai.com/v1/chat/completions',
@@ -488,6 +503,7 @@ async function translateWithDeepSeek(text, targetLang, sourceLang) {
     const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
     const apiKey = zdfConfig?.apiKeys?.deepseek;
     const model = zdfConfig?.selectedModels?.deepseek || 'deepseek-chat';
+    ensureApiKey(apiKey, 'DeepSeek');
 
     const response = await fetchWithRetry(
         'https://api.deepseek.com/chat/completions',
@@ -509,7 +525,7 @@ async function translateWithGoogle(text, targetLang, sourceLang) {
    const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
    const apiKey = zdfConfig?.apiKeys?.google;
    
-   if (!apiKey) throw new Error('Google API key not configured');
+   ensureApiKey(apiKey, 'Google');
    
    const response = await fetchWithRetry(
        `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`,
@@ -531,7 +547,14 @@ async function translateWithDeepL(text, targetLang, sourceLang) {
     const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
     const apiKey = zdfConfig?.apiKeys?.deepl;
     
-    if (!apiKey) throw new Error('DeepL API key not configured');
+    ensureApiKey(apiKey, 'DeepL');
+
+    const params = new URLSearchParams();
+    params.set('text', text);
+    params.set('target_lang', targetLang.toUpperCase());
+    if (sourceLang && sourceLang !== 'auto') {
+      params.set('source_lang', sourceLang.toUpperCase());
+    }
     
     const response = await fetchWithRetry(
         'https://api-free.deepl.com/v2/translate',
@@ -541,11 +564,7 @@ async function translateWithDeepL(text, targetLang, sourceLang) {
                 'Authorization': `DeepL-Auth-Key ${apiKey}`,
                 'Content-Type': 'application/x-www-form-urlencoded'
             },
-            body: new URLSearchParams({ 
-                text, 
-                target_lang: targetLang.toUpperCase(),
-                source_lang: sourceLang === 'auto' ? undefined : sourceLang.toUpperCase()
-            })
+            body: params
         },
         'deepl'
     );
