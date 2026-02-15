@@ -1034,7 +1034,9 @@
       outputCanvas = totalCanvas;
     }
 
-    await downloadOptimizedCanvas(outputCanvas, `zdftranslate-selection-modern-${Date.now()}`);
+    const mode = translationActive ? 'bilingual' : 'original';
+    const baseName = buildArticleExportBaseName(document.title, mode);
+    await downloadOptimizedCanvas(outputCanvas, baseName);
   }
 
   // 导出：极致清晰优先（默认 PNG），仅在 PNG 失败时回退 JPEG
