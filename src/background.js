@@ -18,7 +18,9 @@ const MIN_REQUEST_INTERVAL_BY_SERVICE = {
   kimi: 50,
   zhipu: 60,
   deepseek: 60,
-  openai: 60
+  openai: 60,
+  openrouter: 60,
+  custom: 60
 };
 
 self.addEventListener('unhandledrejection', (event) => {
@@ -126,8 +128,14 @@ function getDefaultConfig() {
     sourceLang: 'auto',
     displayMode: 'bilingual',
     translationService: 'libretranslate',
-    selectedModels: { ...DEFAULT_MODELS },
+    autoTranslateYouTube: true,
+    autoEnableYouTubeCC: true,
+    selectedModels: { 
+      ...DEFAULT_MODELS,
+      openrouter: 'openai/gpt-4o-mini'
+    },
     apiKeys: {},
+    customServices: [],
     excludedSites: [],
     style: {
       translationColor: '#111111',
@@ -394,6 +402,10 @@ async function handleTranslation(request) {
       result = await translateWithGoogle(text, targetLang, sourceLang);
   } else if (service === 'deepl') {
       result = await translateWithDeepL(text, targetLang, sourceLang);
+  } else if (service === 'openrouter') {
+      result = await translateWithOpenRouter(text, targetLang, sourceLang);
+  } else if (service?.startsWith('custom_')) {
+      result = await translateWithCustomService(service, text, targetLang, sourceLang);
   } else {
       // 默认 libretranslate
       result = await translateWithLibreTranslate(text, targetLang, sourceLang);
@@ -567,5 +579,178 @@ async function translateWithLibreTranslate(text, targetLang, sourceLang) {
     } catch (error) {
         console.error('LibreTranslate 翻译失败:', error);
         throw new Error('LibreTranslate 翻译失败: ' + error.message);
+    }
+}
+
+// OpenRouter 翻译
+async function translateWithOpenRouter(text, targetLang, sourceLang) {
+    const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
+    const apiKey = zdfConfig?.apiKeys?.openrouter;
+    const model = zdfConfig?.selectedModels?.openrouter || 'openai/gpt-4o-mini';
+    
+    if (!apiKey) throw new Error('OpenRouter API key not configured');
+    
+    const langNames = {
+        'zh-CN': '简体中文',
+        'zh-TW': '繁體中文',
+        'en': 'English',
+        'ja': '日本語',
+        'ko': '한국어',
+        'fr': 'Français',
+        'de': 'Deutsch',
+        'es': 'Español',
+        'ru': 'Русский'
+    };
+    const targetLangName = langNames[targetLang] || targetLang;
+
+    try {
+        const response = await fetchWithRetry(
+            'https://openrouter.ai/api/v1/chat/completions',
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'https://github.com/zdf-translate',
+                    'X-Title': 'ZDFTranslate'
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [
+                        {
+                            role: 'system',
+                            content: `You are a professional translator. Translate the following text to ${targetLangName}. Only return the translated text, no explanations.`
+                        },
+                        {
+                            role: 'user',
+                            content: text
+                        }
+                    ],
+                    temperature: 0.3,
+                    max_tokens: 2000
+                })
+            },
+            'openrouter'
+        );
+        
+        const data = await response.json();
+        if (!data.choices?.[0]?.message?.content) {
+            throw new Error('OpenRouter API 返回格式错误: ' + JSON.stringify(data));
+        }
+        return data.choices[0].message.content.trim();
+    } catch (error) {
+        // 处理 OpenRouter 特定的错误
+        if (error.message?.includes('404') && error.message?.includes('data policy')) {
+            throw new Error('OpenRouter 隐私设置错误：当前模型需要调整数据使用策略。\n\n解决方法：\n1. 访问 https://openrouter.ai/settings/privacy\n2. 开启 "Allow my prompts to be used for training" 或选择允许免费模型使用的选项\n3. 或者更换为不需要数据共享的模型（如 openai/gpt-4o-mini）');
+        }
+        if (error.message?.includes('404') && error.message?.includes('No endpoints found')) {
+            throw new Error('OpenRouter 错误：找不到可用的模型端点。\n\n可能原因：\n1. 所选模型暂时不可用\n2. 账户余额不足\n3. 模型需要特定权限\n\n建议：尝试更换其他模型，或检查 OpenRouter 账户余额。');
+        }
+        throw error;
+    }
+}
+
+// 自定义服务翻译
+async function translateWithCustomService(serviceId, text, targetLang, sourceLang) {
+    const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
+    const customService = zdfConfig?.customServices?.find(s => s.id === serviceId);
+    
+    if (!customService) {
+        throw new Error(`自定义服务 ${serviceId} 未找到`);
+    }
+    
+    if (!customService.apiKey) {
+        throw new Error(`自定义服务 ${customService.name} 未配置 API Key`);
+    }
+    
+    if (!customService.apiBaseUrl) {
+        throw new Error(`自定义服务 ${customService.name} 未配置 API Base URL`);
+    }
+    
+    const langNames = {
+        'zh-CN': '简体中文',
+        'zh-TW': '繁體中文',
+        'en': 'English',
+        'ja': '日本語',
+        'ko': '한국어',
+        'fr': 'Français',
+        'de': 'Deutsch',
+        'es': 'Español',
+        'ru': 'Русский'
+    };
+    const targetLangName = langNames[targetLang] || targetLang;
+    
+    // 规范化 URL：去除首尾空格，去除尾部斜杠
+    let baseUrl = customService.apiBaseUrl.trim();
+    while (baseUrl.endsWith('/')) {
+      baseUrl = baseUrl.slice(0, -1);
+    }
+    const model = customService.selectedModel || 'default';
+    
+    if (customService.mode === 'anthropic') {
+        // Anthropic 兼容模式
+        const response = await fetchWithRetry(
+            `${baseUrl}/messages`,
+            {
+                method: 'POST',
+                headers: {
+                    'x-api-key': customService.apiKey,
+                    'Content-Type': 'application/json',
+                    'anthropic-version': '2023-06-01'
+                },
+                body: JSON.stringify({
+                    model: model,
+                    max_tokens: 2000,
+                    system: `You are a professional translator. Translate the following text to ${targetLangName}. Only return the translated text, no explanations.`,
+                    messages: [
+                        {
+                            role: 'user',
+                            content: text
+                        }
+                    ]
+                })
+            },
+            'custom'
+        );
+        
+        const data = await response.json();
+        if (!data.content?.[0]?.text) {
+            throw new Error('Anthropic API 返回格式错误: ' + JSON.stringify(data));
+        }
+        return data.content[0].text.trim();
+    } else {
+        // OpenAI 兼容模式 (默认)
+        const response = await fetchWithRetry(
+            `${baseUrl}/chat/completions`,
+            {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${customService.apiKey}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [
+                        {
+                            role: 'system',
+                            content: `You are a professional translator. Translate the following text to ${targetLangName}. Only return the translated text, no explanations.`
+                        },
+                        {
+                            role: 'user',
+                            content: text
+                        }
+                    ],
+                    temperature: 0.3,
+                    max_tokens: 2000
+                })
+            },
+            'custom'
+        );
+        
+        const data = await response.json();
+        if (!data.choices?.[0]?.message?.content) {
+            throw new Error('OpenAI API 返回格式错误: ' + JSON.stringify(data));
+        }
+        return data.choices[0].message.content.trim();
     }
 }

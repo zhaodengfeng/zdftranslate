@@ -1552,6 +1552,49 @@
   
   // ========== 文章截图功能 ==========
 
+  // 预处理跨域图片，尝试设置 crossOrigin 属性
+  async function prepareImagesForCapture() {
+    const images = document.querySelectorAll('img');
+    const promises = [];
+    
+    images.forEach(img => {
+      // 跳过已经是 data URL 或同源的图
+      if (!img.src || img.src.startsWith('data:')) return;
+      
+      try {
+        const imgUrl = new URL(img.src);
+        if (imgUrl.origin === location.origin) return; // 同源，不需要处理
+      } catch (e) {
+        return; // URL 解析失败，跳过
+      }
+      
+      // 尝试设置 crossOrigin
+      if (img.crossOrigin !== 'anonymous') {
+        img.crossOrigin = 'anonymous';
+      }
+      
+      // 如果图片还没加载完，等待它加载
+      if (!img.complete) {
+        promises.push(new Promise((resolve) => {
+          const onLoad = () => {
+            img.removeEventListener('load', onLoad);
+            img.removeEventListener('error', onLoad);
+            resolve();
+          };
+          img.addEventListener('load', onLoad);
+          img.addEventListener('error', onLoad);
+          // 3 秒超时
+          setTimeout(resolve, 3000);
+        }));
+      }
+    });
+    
+    // 仅等待 img 标签的处理，不再扫描背景图以提升性能
+    await Promise.all(promises);
+    // 额外等待一小段时间让 CORS 设置生效
+    await new Promise(r => setTimeout(r, 200));
+  }
+
   async function buildArticleCaptureCanvas() {
     const articleElement = findArticleElement();
     if (!articleElement) {
@@ -1575,9 +1618,13 @@
     const areaLimitedScale = Math.sqrt(maxOutputPixels / area);
     const captureScale = Math.max(1.8, Math.min(3, dprScale, areaLimitedScale));
 
+    // 预处理跨域图片：尝试设置 crossOrigin 属性
+    await prepareImagesForCapture();
+
     const canvas = await html2canvas(document.body, {
       useCORS: true,
       allowTaint: true,
+      foreignObjectRendering: false,
       scale: captureScale,
       backgroundColor: '#ffffff',
       logging: false,
@@ -1587,7 +1634,23 @@
       height: Math.max(1, Math.ceil(bounds.height)),
       windowWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
       windowHeight: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
+      onclone: (clonedDoc) => {
+        // 在克隆的文档中也处理图片
+        const images = clonedDoc.querySelectorAll('img');
+        images.forEach(img => {
+          if (img.crossOrigin !== 'anonymous') {
+            img.crossOrigin = 'anonymous';
+          }
+        });
+      }
     });
+
+    // 检查 canvas 是否被污染
+    try {
+      canvas.getContext('2d').getImageData(0, 0, 1, 1);
+    } catch (e) {
+      throw new Error('CORS_ERROR: 页面包含跨域图片，无法导出。请尝试在浏览器设置中允许跨域图片，或使用系统截图工具。');
+    }
 
     const showWatermark = config.style?.showWatermark !== false;
     const watermarkHeight = showWatermark ? 170 : 0;
@@ -1621,13 +1684,32 @@
       await downloadOptimizedCanvas(totalCanvas, baseName);
     } catch (error) {
       console.error('[ZDFTranslate] 截图失败:', error);
-      alert('截图失败: ' + error.message);
+      handleExportError(error, 'screenshot');
     } finally {
       if (captureBtn) {
         captureBtn.classList.remove('zdf-capture-loading');
       }
       updateCaptureButtonState();
     }
+  }
+
+  // 处理导出错误，提供友好的错误信息
+  function handleExportError(error, type) {
+    const action = type === 'pdf' ? 'PDF导出' : '截图';
+    let message = error.message || '未知错误';
+    
+    // 检测 CORS 相关错误
+    if (message.includes('CORS_ERROR') || 
+        message.includes('Tainted canvases') || 
+        message.includes('tainted') ||
+        message.includes('cross-origin') ||
+        message.includes('getImageData')) {
+      message = `${action}失败：页面包含跨域图片（CORS限制）\n\n解决方法：\n1. 使用浏览器扩展 Allow CORS 临时允许跨域\n2. 使用系统截图工具（Win+Shift+S / Cmd+Shift+4）\n3. 尝试打印为PDF（Ctrl+P / Cmd+P）\n\n技术原因：某些网站图片服务器未配置跨域访问权限。`;
+    } else {
+      message = `${action}失败: ${message}`;
+    }
+    
+    alert(message);
   }
 
   async function exportArticlePdf() {
@@ -1748,7 +1830,7 @@
       pdf.save(`${baseName}.pdf`);
     } catch (error) {
       console.error('[ZDFTranslate] PDF导出失败:', error);
-      alert('PDF导出失败: ' + error.message);
+      handleExportError(error, 'pdf');
     } finally {
       if (pdfBtn) {
         pdfBtn.classList.remove('zdf-capture-loading');

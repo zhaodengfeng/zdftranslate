@@ -1,7 +1,44 @@
 // ZDFTranslate - Options Script
 // 处理设置页面的逻辑
 
+// 辅助函数：生成唯一 ID
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+  // 定义全局状态
+  let customServices = [];
+  
+  // 提前绑定添加按钮事件
+  const addBtn = document.getElementById('addCustomServiceBtn');
+  if (addBtn) {
+    addBtn.disabled = true; // 加载期间禁用
+    addBtn.textContent = '加载配置中...';
+    
+    addBtn.addEventListener('click', () => {
+      console.log('Adding custom service...');
+      try {
+        const newService = {
+          id: 'custom_' + generateId(),
+          name: '自定义服务',
+          apiBaseUrl: '',
+          apiKey: '',
+          mode: 'openai',
+          selectedModel: ''
+        };
+        customServices.push(newService);
+        renderCustomServices();
+        showStatus('已添加自定义服务，请配置详细信息', 'success');
+      } catch (e) {
+        console.error('Error adding custom service:', e);
+        showStatus('添加服务出错: ' + e.message, 'error');
+      }
+    });
+  } else {
+    console.error('Add Custom Service button not found!');
+  }
+
   // 显示真实版本号
   const appVersionEl = document.getElementById('appVersion');
   if (appVersionEl && chrome?.runtime?.getManifest) {
@@ -11,13 +48,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 加载当前配置
   const config = await loadConfig();
   
+  if (addBtn) {
+    addBtn.disabled = false;
+    addBtn.textContent = '➕ 添加自定义服务';
+  }
+  
+  // 更新 customServices
+  if (config.customServices) {
+    customServices = config.customServices;
+  }
+  
+  // 模型选择器映射
+  
   // 模型选择器映射
   const modelSelectors = {
     kimi: document.getElementById('kimiModel'),
     zhipu: document.getElementById('zhipuModel'),
     aliyun: document.getElementById('aliyunModel'),
     deepseek: document.getElementById('deepseekModel'),
-    openai: document.getElementById('openaiModel')
+    openai: document.getElementById('openaiModel'),
+    openrouter: document.getElementById('openrouterModel')
   };
   
   // 自定义模型输入映射
@@ -26,7 +76,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     zhipu: document.getElementById('zhipuModelCustom'),
     aliyun: document.getElementById('aliyunModelCustom'),
     deepseek: document.getElementById('deepseekModelCustom'),
-    openai: document.getElementById('openaiModelCustom')
+    openai: document.getElementById('openaiModelCustom'),
+    openrouter: document.getElementById('openrouterModelCustom')
   };
   
   // API Key 输入框映射
@@ -35,7 +86,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     zhipu: document.getElementById('zhipuApiKey'),
     aliyun: document.getElementById('aliyunApiKey'),
     deepseek: document.getElementById('deepseekApiKey'),
-    openai: document.getElementById('openaiApiKey')
+    openai: document.getElementById('openaiApiKey'),
+    openrouter: document.getElementById('openrouterApiKey')
   };
   
   // 默认模型列表（保底用）
@@ -74,8 +126,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
       { id: 'gpt-4o', name: 'GPT-4o' },
       { id: 'gpt-4o-mini', name: 'GPT-4o Mini' }
+    ],
+    openrouter: [
+      { id: 'openai/gpt-4o', name: 'GPT-4o (OpenAI)' },
+      { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini (OpenAI)' },
+      { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
+      { id: 'anthropic/claude-3-opus', name: 'Claude 3 Opus' },
+      { id: 'google/gemini-pro', name: 'Gemini Pro' },
+      { id: 'meta-llama/llama-3-70b-instruct', name: 'Llama 3 70B' },
+      { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat' }
     ]
   };
+  
+  // 自定义服务列表（运行时动态维护）
+  // let customServices = config.customServices || [];
   
   // 兼容旧版本：把历史默认黑灰色迁移成现代蓝默认值
   const oldDefaultColors = ['#666', '#666666', '#000', '#000000', 'rgb(102, 102, 102)', '#3b82f6'];
@@ -108,6 +172,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('googleApiKey').value = config.apiKeys?.google || '';
   document.getElementById('deeplApiKey').value = config.apiKeys?.deepl || '';
   apiKeyInputs.openai.value = config.apiKeys?.openai || '';
+  if (apiKeyInputs.openrouter) {
+    apiKeyInputs.openrouter.value = config.apiKeys?.openrouter || '';
+  }
   
   // 外观设置
   document.getElementById('translationColor').value = config.style?.translationColor || '#111111';
@@ -120,7 +187,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 初始化所有模型选择器
   for (const [service, select] of Object.entries(modelSelectors)) {
     if (select) {
-      renderModels(service, select, DEFAULT_MODELS[service], config.selectedModels?.[service]);
+      renderModels(service, select, DEFAULT_MODELS[service] || [], config.selectedModels?.[service]);
       
       // 如果有 API Key，尝试获取远程模型列表（但不覆盖默认模型）
       const apiKey = apiKeyInputs[service]?.value;
@@ -129,7 +196,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const models = await fetchRemoteModelsWithFallback(service, apiKey);
           if (models.length > 0) {
             // 合并远程模型和默认模型，避免重复
-            const mergedModels = [...DEFAULT_MODELS[service]];
+            const mergedModels = [...(DEFAULT_MODELS[service] || [])];
             models.forEach(remoteModel => {
               if (!mergedModels.some(m => m.id === remoteModel.id)) {
                 mergedModels.push(remoteModel);
@@ -148,12 +215,16 @@ document.addEventListener('DOMContentLoaded', async () => {
   for (const [service, input] of Object.entries(customModelInputs)) {
     if (input && config.selectedModels?.[service]) {
       // 如果当前选择的模型不在默认列表中，显示在自定义输入框
-      const isCustom = !DEFAULT_MODELS[service].some(m => m.id === config.selectedModels[service]);
+      const defaultModels = DEFAULT_MODELS[service] || [];
+      const isCustom = !defaultModels.some(m => m.id === config.selectedModels[service]);
       if (isCustom) {
         input.value = config.selectedModels[service];
       }
     }
   }
+  
+  // 初始化自定义服务列表
+  renderCustomServices();
 
   // 刷新模型按钮事件
   document.querySelectorAll('.refresh-models').forEach(btn => {
@@ -247,6 +318,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     });
   });
+  
+  // 添加自定义服务按钮事件 (已移至顶部)
 
   // 保存按钮
   document.getElementById('saveBtn').addEventListener('click', async () => {
@@ -265,6 +338,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       }
       
+      // 收集自定义服务的模型选择
+      customServices.forEach(service => {
+        const card = document.querySelector(`.custom-service-card[data-service-id="${service.id}"]`);
+        if (card) {
+          const modelSelect = card.querySelector('.custom-service-model');
+          const modelInput = card.querySelector('.custom-service-model-custom');
+          if (modelInput && modelInput.style.display !== 'none' && modelInput.value.trim()) {
+            service.selectedModel = modelInput.value.trim();
+          } else if (modelSelect) {
+            service.selectedModel = modelSelect.value;
+          }
+        }
+      });
+      
       // 获取视频翻译设置
       const autoTranslateYouTubeEl = document.getElementById('autoTranslateYouTube');
       const autoEnableYouTubeCCEl = document.getElementById('autoEnableYouTubeCC');
@@ -280,9 +367,11 @@ document.addEventListener('DOMContentLoaded', async () => {
           deepseek: apiKeyInputs.deepseek.value.trim(),
           google: document.getElementById('googleApiKey').value.trim(),
           deepl: document.getElementById('deeplApiKey').value.trim(),
-          openai: apiKeyInputs.openai.value.trim()
+          openai: apiKeyInputs.openai.value.trim(),
+          openrouter: apiKeyInputs.openrouter ? apiKeyInputs.openrouter.value.trim() : ''
         },
         selectedModels: selectedModels,
+        customServices: customServices,
         style: {
           translationColor: document.getElementById('translationColor').value,
           translationSize: document.getElementById('translationSize').value,
@@ -320,12 +409,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           zhipu: 'glm-4-flash',
           aliyun: 'qwen-turbo',
           deepseek: 'deepseek-chat',
-          openai: 'gpt-3.5-turbo'
+          openai: 'gpt-3.5-turbo',
+          openrouter: 'openai/gpt-4o-mini'
         },
         apiKeys: { 
           kimi: '', zhipu: '', aliyun: '', deepseek: '',
-          google: '', deepl: '', openai: '' 
+          google: '', deepl: '', openai: '', openrouter: '' 
         },
+        customServices: [],
         excludedSites: [],
         style: {
           translationColor: '#111111',
@@ -340,6 +431,188 @@ document.addEventListener('DOMContentLoaded', async () => {
       location.reload();
     }
   });
+  
+  // 渲染自定义服务列表
+  function renderCustomServices() {
+    const container = document.getElementById('customServicesContainer');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    customServices.forEach(service => {
+      const template = document.getElementById('customServiceTemplate');
+      if (!template) return;
+      
+      const clone = template.firstElementChild.cloneNode(true);
+      clone.dataset.serviceId = service.id;
+      
+      // 填充数据
+      const nameInput = clone.querySelector('.custom-service-name');
+      const baseUrlInput = clone.querySelector('.custom-service-baseurl');
+      const apiKeyInput = clone.querySelector('.custom-service-apikey');
+      const modeSelect = clone.querySelector('.custom-service-mode');
+      const modelSelect = clone.querySelector('.custom-service-model');
+      const modelInput = clone.querySelector('.custom-service-model-custom');
+      
+      nameInput.value = service.name || '';
+      baseUrlInput.value = service.apiBaseUrl || '';
+      apiKeyInput.value = service.apiKey || '';
+      modeSelect.value = service.mode || 'openai';
+      
+      // 渲染模型列表
+      renderCustomServiceModels(modelSelect, service.selectedModel);
+      
+      // 如果是自定义模型，显示在输入框
+      if (service.selectedModel && modelSelect.querySelector(`option[value="${service.selectedModel}"]`)?.textContent?.includes('(自定义)')) {
+        modelSelect.style.display = 'none';
+        modelInput.style.display = 'block';
+        modelInput.value = service.selectedModel;
+        clone.querySelector('.toggle-custom-model-custom').textContent = '📋 选择列表';
+      }
+      
+      // 绑定事件
+      nameInput.addEventListener('change', () => {
+        service.name = nameInput.value;
+      });
+      
+      baseUrlInput.addEventListener('change', () => {
+        service.apiBaseUrl = baseUrlInput.value;
+      });
+      
+      apiKeyInput.addEventListener('change', () => {
+        service.apiKey = apiKeyInput.value;
+      });
+      
+      modeSelect.addEventListener('change', () => {
+        service.mode = modeSelect.value;
+      });
+      
+      modelSelect.addEventListener('change', () => {
+        service.selectedModel = modelSelect.value;
+      });
+      
+      modelInput.addEventListener('change', () => {
+        service.selectedModel = modelInput.value;
+      });
+      
+      // 删除按钮
+      clone.querySelector('.delete-custom-service').addEventListener('click', () => {
+        if (confirm(`确定要删除自定义服务 "${service.name}" 吗？`)) {
+          customServices = customServices.filter(s => s.id !== service.id);
+          renderCustomServices();
+          showStatus('已删除自定义服务', 'success');
+        }
+      });
+      
+      // 获取模型按钮
+      clone.querySelector('.refresh-custom-models').addEventListener('click', async () => {
+        const btn = clone.querySelector('.refresh-custom-models');
+        const statusEl = clone.querySelector('.custom-service-status');
+        
+        btn.disabled = true;
+        const originalText = btn.textContent;
+        btn.textContent = '获取中...';
+        
+        if (statusEl) {
+          statusEl.textContent = '获取远程模型...';
+          statusEl.className = 'custom-service-status loading';
+        }
+        
+        if (!service.apiKey || !service.apiBaseUrl) {
+          if (statusEl) {
+            statusEl.textContent = '请先输入 API Key 和 Base URL';
+            statusEl.className = 'custom-service-status error';
+          }
+          btn.disabled = false;
+          btn.textContent = originalText;
+          return;
+        }
+        
+        const models = await fetchCustomModels(service.apiBaseUrl, service.apiKey, service.mode);
+        
+        btn.disabled = false;
+        btn.textContent = originalText;
+        
+        if (models.length > 0) {
+          renderCustomServiceModels(modelSelect, service.selectedModel, models);
+          if (statusEl) {
+            statusEl.textContent = `已获取 ${models.length} 个模型`;
+            statusEl.className = 'custom-service-status success';
+          }
+        } else {
+          if (statusEl) {
+            statusEl.textContent = '获取失败，请检查配置';
+            statusEl.className = 'custom-service-status error';
+          }
+        }
+        
+        setTimeout(() => {
+          if (statusEl) {
+            statusEl.textContent = '';
+            statusEl.className = '';
+          }
+        }, 5000);
+      });
+      
+      // 自定义模型切换按钮
+      clone.querySelector('.toggle-custom-model-custom').addEventListener('click', () => {
+        const btn = clone.querySelector('.toggle-custom-model-custom');
+        
+        if (modelInput.style.display === 'none') {
+          modelSelect.style.display = 'none';
+          modelInput.style.display = 'block';
+          btn.textContent = '📋 选择列表';
+          modelInput.focus();
+        } else {
+          modelSelect.style.display = 'block';
+          modelInput.style.display = 'none';
+          btn.textContent = '✏️ 自定义';
+          
+          if (modelInput.value.trim()) {
+            const customModel = modelInput.value.trim();
+            const exists = Array.from(modelSelect.options).some(opt => opt.value === customModel);
+            if (!exists) {
+              const option = document.createElement('option');
+              option.value = customModel;
+              option.textContent = customModel + ' (自定义)';
+              modelSelect.appendChild(option);
+            }
+            modelSelect.value = customModel;
+            service.selectedModel = customModel;
+          }
+        }
+      });
+      
+      container.appendChild(clone);
+    });
+  }
+  
+  // 渲染自定义服务模型列表
+  function renderCustomServiceModels(selectElement, selectedModel, models = []) {
+    selectElement.innerHTML = '';
+    
+    if (models.length === 0) {
+      selectElement.innerHTML = '<option value="">输入 API 信息后获取模型</option>';
+      if (selectedModel) {
+        const option = document.createElement('option');
+        option.value = selectedModel;
+        option.textContent = selectedModel + ' (自定义)';
+        option.selected = true;
+        selectElement.appendChild(option);
+      }
+      return;
+    }
+    
+    models.forEach(model => {
+      const option = document.createElement('option');
+      option.value = model.id;
+      option.textContent = model.name;
+      if (model.id === selectedModel) {
+        option.selected = true;
+      }
+      selectElement.appendChild(option);
+    });
+  }
 
   // 渲染模型列表
   function renderModels(service, selectElement, models, selectedModel) {
@@ -373,6 +646,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const fetchFunctions = {
         openai: fetchOpenAIModels,
+        openrouter: fetchOpenRouterModels,
         kimi: fetchKimiModels,
         deepseek: fetchDeepSeekModels,
         aliyun: fetchAliyunModels,
@@ -398,7 +672,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     if (models.length > 0) {
       // 合并远程模型和默认模型
-      const mergedModels = [...DEFAULT_MODELS[service]];
+      const mergedModels = [...(DEFAULT_MODELS[service] || [])];
       models.forEach(remoteModel => {
         if (!mergedModels.some(m => m.id === remoteModel.id)) {
           mergedModels.push(remoteModel);
@@ -408,6 +682,53 @@ document.addEventListener('DOMContentLoaded', async () => {
       return true;
     }
     return false;
+  }
+  
+  // 获取自定义服务模型列表
+  async function fetchCustomModels(apiBaseUrl, apiKey, mode) {
+    try {
+      if (mode === 'anthropic') {
+        return await fetchAnthropicModels(apiBaseUrl, apiKey);
+      } else {
+        return await fetchGenericOpenAIModels(apiBaseUrl, apiKey);
+      }
+    } catch (error) {
+      console.error('获取自定义服务模型失败:', error);
+      return [];
+    }
+  }
+  
+  // 通用 OpenAI 格式模型获取
+  async function fetchGenericOpenAIModels(apiBaseUrl, apiKey) {
+    const baseUrl = apiBaseUrl.replace(/\/$/, '');
+    const response = await fetch(`${baseUrl}/models`, {
+      headers: { 'Authorization': `Bearer ${apiKey}` }
+    });
+    
+    if (!response.ok) throw new Error('Failed to fetch models');
+    
+    const data = await response.json();
+    return data.data
+      .map(m => ({ id: m.id, name: m.id }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+  }
+  
+  // Anthropic 格式模型获取
+  async function fetchAnthropicModels(apiBaseUrl, apiKey) {
+    const baseUrl = apiBaseUrl.replace(/\/$/, '');
+    const response = await fetch(`${baseUrl}/models`, {
+      headers: { 
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      }
+    });
+    
+    if (!response.ok) throw new Error('Failed to fetch models');
+    
+    const data = await response.json();
+    return data.models
+      .map(m => ({ id: m.id, name: m.display_name || m.id }))
+      .sort((a, b) => a.id.localeCompare(b.id));
   }
 
   // OpenAI 模型列表
@@ -426,6 +747,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         .sort((a, b) => a.id.localeCompare(b.id));
     } catch (error) {
       console.error('OpenAI API 错误:', error);
+      return [];
+    }
+  }
+  
+  // OpenRouter 模型列表
+  async function fetchOpenRouterModels(apiKey) {
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/models', {
+        headers: { 'Authorization': `Bearer ${apiKey}` }
+      });
+      
+      if (!response.ok) throw new Error('Failed to fetch models');
+      
+      const data = await response.json();
+      return data.data
+        .map(m => ({ id: m.id, name: m.name || m.id }))
+        .sort((a, b) => a.id.localeCompare(b.id));
+    } catch (error) {
+      console.error('OpenRouter API 错误:', error);
       return [];
     }
   }
@@ -513,7 +853,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       return [];
     }
   }
-
+  
+  // 生成唯一 ID (已移至顶部)
   // 获取服务显示名称
   function getServiceName(service) {
     const names = {
@@ -521,7 +862,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       zhipu: '智谱清言',
       aliyun: '阿里云',
       deepseek: 'DeepSeek',
-      openai: 'OpenAI'
+      openai: 'OpenAI',
+      openrouter: 'OpenRouter'
     };
     return names[service] || service;
   }
@@ -529,14 +871,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 加载配置
   function loadConfig() {
     return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ action: 'getConfig' }, (config) => {
-        if (chrome.runtime.lastError) {
-          console.error('加载配置失败:', chrome.runtime.lastError);
-          resolve({});
-        } else {
-          resolve(config || {});
-        }
-      });
+      // 增加超时处理，防止 background script 无响应导致死锁
+      const timeoutId = setTimeout(() => {
+        console.warn('loadConfig timed out, returning empty config');
+        resolve({});
+      }, 1000);
+
+      try {
+        chrome.runtime.sendMessage({ action: 'getConfig' }, (config) => {
+          clearTimeout(timeoutId);
+          if (chrome.runtime.lastError) {
+            console.error('加载配置失败:', chrome.runtime.lastError);
+            resolve({});
+          } else {
+            resolve(config || {});
+          }
+        });
+      } catch (e) {
+        clearTimeout(timeoutId);
+        console.error('loadConfig execution error:', e);
+        resolve({});
+      }
     });
   }
 

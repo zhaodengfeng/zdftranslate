@@ -36,6 +36,21 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 加载配置和状态
   const config = await loadConfig();
   
+  // 动态加载自定义服务选项
+  const customServicesOptgroup = document.getElementById('customServicesOptgroup');
+  if (customServicesOptgroup && config.customServices?.length > 0) {
+    customServicesOptgroup.innerHTML = '';
+    config.customServices.forEach(service => {
+      const option = document.createElement('option');
+      option.value = service.id;
+      option.textContent = service.name || '未命名服务';
+      customServicesOptgroup.appendChild(option);
+    });
+  } else if (customServicesOptgroup) {
+    // 如果没有自定义服务，隐藏该选项组
+    customServicesOptgroup.style.display = 'none';
+  }
+  
   // 获取当前标签页
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   currentTabId = tab.id;

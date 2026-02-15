@@ -399,6 +399,151 @@ header p {
   background: var(--primary-100);
 }
 
+/* 自定义服务样式 */
+.service-divider {
+  border-top: 1px dashed var(--border);
+  padding-top: 20px;
+  margin-top: 24px;
+}
+
+.custom-service-card {
+  background: linear-gradient(135deg, #fafbff, #f0f5ff);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
+}
+
+.custom-service-card:hover {
+  border-color: rgba(59, 130, 246, 0.35);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);
+}
+
+.custom-service-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(59, 130, 246, 0.1);
+}
+
+.custom-service-header input {
+  flex: 1;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e3a5f;
+  background: #fff;
+}
+
+.custom-service-header input:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.btn-icon {
+  background: #fff;
+  border: 1px solid #fecaca;
+  color: #ef4444;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.btn-icon:hover {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+
+.custom-service-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.form-row label {
+  font-size: 13px;
+  color: var(--text-soft);
+  font-weight: 550;
+}
+
+.form-row input,
+.form-row select {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  background: #fff;
+  transition: all 0.2s;
+}
+
+.form-row input:focus,
+.form-row select:focus {
+  outline: none;
+  border-color: var(--primary-500);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.12);
+}
+
+.form-row select {
+  cursor: pointer;
+}
+
+.custom-service-card .model-select {
+  margin-top: 8px;
+  margin-left: 0;
+  background: rgba(255, 255, 255, 0.6);
+}
+
+.refresh-custom-models,
+.toggle-custom-model-custom {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--primary-500);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--primary-500);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.refresh-custom-models:hover {
+  background: var(--primary-500);
+  color: #fff;
+}
+
+.toggle-custom-model-custom {
+  border-color: #f59e0b !important;
+  color: #f59e0b !important;
+}
+
+.toggle-custom-model-custom:hover {
+  background: #f59e0b !important;
+  color: #fff !important;
+}
+
+.custom-service-status {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-top: 8px;
+  display: inline-block;
+}
+
 textarea {
   resize: vertical;
   min-height: 100px;

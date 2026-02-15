@@ -210,6 +210,79 @@
           </div>
           <span class="model-status" id="openaiStatus"></span>
         </div>
+
+        <!-- OpenRouter 配置 -->
+        <div class="form-group service-divider">
+          <label>OpenRouter API Key</label>
+          <input type="password" id="openrouterApiKey" placeholder="输入 OpenRouter API Key">
+          <a href="https://openrouter.ai/keys" target="_blank">如何获取？</a>
+        </div>
+        <div class="form-group model-select">
+          <label>模型选择</label>
+          <div class="model-input-wrapper">
+            <select id="openrouterModel" class="model-select-dropdown">
+              <option value="">加载默认模型...</option>
+            </select>
+            <input type="text" id="openrouterModelCustom" class="model-custom-input" placeholder="输入自定义模型名" style="display:none;">
+          </div>
+          <div class="model-actions">
+            <button class="refresh-models" data-service="openrouter">🔄 获取远程模型</button>
+            <button class="toggle-custom-model" data-service="openrouter">✏️ 自定义</button>
+          </div>
+          <span class="model-status" id="openrouterStatus"></span>
+        </div>
+
+        <!-- 自定义服务管理 -->
+        <div class="form-group service-divider">
+          <label>自定义翻译服务</label>
+          <p class="service-note">添加兼容 OpenAI 或 Anthropic API 格式的自定义服务</p>
+        </div>
+        <div id="customServicesContainer">
+          <!-- 动态加载自定义服务列表 -->
+        </div>
+        <div class="form-group">
+          <button id="addCustomServiceBtn" class="btn-secondary">➕ 添加自定义服务</button>
+        </div>
+        <!-- 自定义服务编辑模板 (隐藏) -->
+        <div id="customServiceTemplate" style="display:none;">
+          <div class="custom-service-card" data-service-id="">
+            <div class="custom-service-header">
+              <input type="text" class="custom-service-name" placeholder="服务名称">
+              <button class="btn-icon delete-custom-service" title="删除">🗑️</button>
+            </div>
+            <div class="custom-service-body">
+              <div class="form-row">
+                <label>API Base URL</label>
+                <input type="text" class="custom-service-baseurl" placeholder="https://api.example.com/v1">
+              </div>
+              <div class="form-row">
+                <label>API Key</label>
+                <input type="password" class="custom-service-apikey" placeholder="输入 API Key">
+              </div>
+              <div class="form-row">
+                <label>兼容模式</label>
+                <select class="custom-service-mode">
+                  <option value="openai">OpenAI 兼容 (/v1/chat/completions)</option>
+                  <option value="anthropic">Anthropic 兼容 (/v1/messages)</option>
+                </select>
+              </div>
+              <div class="form-row model-select">
+                <label>模型选择</label>
+                <div class="model-input-wrapper">
+                  <select class="custom-service-model model-select-dropdown">
+                    <option value="">选择模型...</option>
+                  </select>
+                  <input type="text" class="custom-service-model-custom model-custom-input" placeholder="输入自定义模型名" style="display:none;">
+                </div>
+                <div class="model-actions">
+                  <button class="refresh-custom-models">🔄 获取模型</button>
+                  <button class="toggle-custom-model-custom">✏️ 自定义</button>
+                </div>
+                <span class="model-status custom-service-status"></span>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- 视频翻译设置 -->

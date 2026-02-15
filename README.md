@@ -9,7 +9,9 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 - **Save as Image** — Export current mode (original / bilingual) as image
 - **Export as PDF** — Export current mode (original / bilingual) as paginated PDF
 - **YouTube Dual Subtitles** — Original + translated subtitles
-- **Multiple Providers** — Google Translate, DeepL, OpenAI, Kimi, Zhipu, DeepSeek
+- **OpenRouter Support** — Access hundreds of models via OpenRouter (GPT-4o, Claude 3.5, Gemini Pro, etc.)
+- **Custom Services** — Add any OpenAI or Anthropic compatible API endpoints
+- **Multiple Providers** — Google Translate, DeepL, OpenAI, Kimi, Zhipu, DeepSeek, Alibaba Cloud
 - **Custom Styles** — Adjustable colors, font size, spacing
 - **Site Exclusion** — Blacklist sites you don't want translated
 
@@ -22,8 +24,9 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 ## Configuration
 
 Click the extension icon → Settings to configure:
-- Choose a translation provider
-- Enter your API key (some providers are free)
+- Choose a translation provider (LibreTranslate is free by default)
+- Enter your API key for advanced AI models
+- **New**: Configure custom API endpoints in the "International Services" section
 - Customize display styles
 
 ## API Keys
@@ -33,6 +36,8 @@ Click the extension icon → Settings to configure:
 | Google Translate | [Cloud Console](https://console.cloud.google.com/) → Enable Cloud Translation API → Create Credentials | Paid, usage-based |
 | DeepL | [DeepL API](https://www.deepl.com/pro-api) → Sign up | Free tier available (keys ending in `:fx`) |
 | OpenAI | [Platform](https://platform.openai.com/api-keys) → Create API Key | Paid, usage-based |
+| **OpenRouter** | [OpenRouter Keys](https://openrouter.ai/keys) | Access to many models |
+| **Custom** | Any compatible provider | Supports `/v1/chat/completions` or Anthropic format |
 | Kimi | [Moonshot Platform](https://platform.moonshot.cn/) → API Keys | Free tier available |
 | Zhipu AI | [Open Platform](https://open.bigmodel.cn/) → API Keys | Free tier available |
 | DeepSeek | [DeepSeek Platform](https://platform.deepseek.com/) → API Keys | Free tier available |
