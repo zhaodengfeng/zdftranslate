@@ -632,6 +632,11 @@ body[data-zdf-active="true"] {
   animation: zdf-spin 0.8s linear infinite;
 }
 
+/* PDF 导出按钮：与截图按钮成组排列 */
+.zdf-pdf-btn {
+  bottom: 246px;
+}
+
 @media (prefers-color-scheme: dark) {
   .zdf-capture-btn {
     background: rgba(15, 23, 42, 0.88);
@@ -653,6 +658,9 @@ body[data-zdf-active="true"] {
     width: 28px;
     height: 28px;
     border-radius: 9px;
+  }
+  .zdf-pdf-btn {
+    bottom: 216px;
   }
   .zdf-capture-btn svg,
   .zdf-capture-btn .zdf-float-icon-img {

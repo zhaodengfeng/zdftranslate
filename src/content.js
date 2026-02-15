@@ -1065,6 +1065,18 @@
     return new Promise(resolve => canvas.toBlob(resolve, type, quality));
   }
 
+  function buildArticleExportBaseName(title, mode) {
+    const cleanTitle = (title || document.title || 'article')
+      .replace(/[\\/:*?"<>|]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 40);
+
+    const modeText = mode === 'bilingual' ? 'BIL' : 'ORI';
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    return `${cleanTitle || 'article'}-${modeText}-${rand}`;
+  }
+
   function getSanitizedPageUrl() {
     try {
       const origin = location.origin || '';
@@ -1540,71 +1552,73 @@
   
   // ========== 文章截图功能 ==========
 
+  async function buildArticleCaptureCanvas() {
+    const articleElement = findArticleElement();
+    if (!articleElement) {
+      throw new Error('未找到文章内容区域');
+    }
+
+    await warmupArticleForCapture(articleElement);
+
+    let bounds = getArticleCaptureBounds(articleElement);
+    if (!bounds || bounds.width < 80 || bounds.height < 320) {
+      await warmupArticleForCapture(articleElement, { deep: true });
+      bounds = getArticleCaptureBounds(articleElement);
+    }
+    if (!bounds || bounds.width < 80 || bounds.height < 80) {
+      throw new Error('未能识别有效的截图区域');
+    }
+
+    const area = Math.max(1, Math.ceil(bounds.width) * Math.ceil(bounds.height));
+    const dprScale = Math.max(2, window.devicePixelRatio || 2);
+    const maxOutputPixels = 18_000_000;
+    const areaLimitedScale = Math.sqrt(maxOutputPixels / area);
+    const captureScale = Math.max(1.8, Math.min(3, dprScale, areaLimitedScale));
+
+    const canvas = await html2canvas(document.body, {
+      useCORS: true,
+      allowTaint: true,
+      scale: captureScale,
+      backgroundColor: '#ffffff',
+      logging: false,
+      x: Math.max(0, Math.floor(window.scrollX + bounds.left)),
+      y: Math.max(0, Math.floor(window.scrollY + bounds.top)),
+      width: Math.max(1, Math.ceil(bounds.width)),
+      height: Math.max(1, Math.ceil(bounds.height)),
+      windowWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
+      windowHeight: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
+    });
+
+    const showWatermark = config.style?.showWatermark !== false;
+    const watermarkHeight = showWatermark ? 170 : 0;
+    const totalCanvas = document.createElement('canvas');
+    totalCanvas.width = canvas.width;
+    totalCanvas.height = canvas.height + watermarkHeight;
+    const totalCtx = totalCanvas.getContext('2d');
+
+    totalCtx.drawImage(canvas, 0, 0);
+
+    if (showWatermark) {
+      await drawWatermarkBar(totalCtx, totalCanvas.width, canvas.height, watermarkHeight);
+    }
+
+    return totalCanvas;
+  }
+
   async function captureArticleScreenshot() {
     const captureBtn = document.getElementById('zdf-capture-btn');
-    
+
     if (captureBtn) {
       captureBtn.classList.add('zdf-capture-loading');
       captureBtn.title = '截图中...';
     }
 
     try {
-      // 1. 找到文章区域
-      const articleElement = findArticleElement();
-      if (!articleElement) {
-        alert('未找到文章内容区域');
-        return;
-      }
-
-      // 2. 计算截图区域：从标题开始到正文结束（保留原网页样式与文中广告）
-      const bounds = getArticleCaptureBounds(articleElement);
-      if (!bounds || bounds.width < 80 || bounds.height < 80) {
-        alert('未能识别有效的截图区域');
-        return;
-      }
-
-      // 3. 直接截取页面中的目标区域（不重排、不清洗）
-      // 自适应清晰度：避免 scale 过大触发浏览器内部降采样导致“又大又糊”
-      const area = Math.max(1, Math.ceil(bounds.width) * Math.ceil(bounds.height));
-      const dprScale = Math.max(2, window.devicePixelRatio || 2);
-      const maxOutputPixels = 18_000_000; // 约 1800 万像素上限
-      const areaLimitedScale = Math.sqrt(maxOutputPixels / area);
-      const captureScale = Math.max(1.8, Math.min(3, dprScale, areaLimitedScale));
-
-      const canvas = await html2canvas(document.body, {
-        useCORS: true,
-        allowTaint: true,
-        scale: captureScale,
-        backgroundColor: '#ffffff',
-        logging: false,
-        x: Math.max(0, Math.floor(window.scrollX + bounds.left)),
-        y: Math.max(0, Math.floor(window.scrollY + bounds.top)),
-        width: Math.max(1, Math.ceil(bounds.width)),
-        height: Math.max(1, Math.ceil(bounds.height)),
-        windowWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
-        windowHeight: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
-      });
-
-      // 4. 根据设置决定是否添加水印
-      const showWatermark = config.style?.showWatermark !== false;
-      const watermarkHeight = showWatermark ? 170 : 0;
-      const totalCanvas = document.createElement('canvas');
-      totalCanvas.width = canvas.width;
-      totalCanvas.height = canvas.height + watermarkHeight;
-      const totalCtx = totalCanvas.getContext('2d');
-
-      // 画文章截图
-      totalCtx.drawImage(canvas, 0, 0);
-
-      if (showWatermark) {
-        await drawWatermarkBar(totalCtx, totalCanvas.width, canvas.height, watermarkHeight);
-      }
-
-      // 5. 下载图片（根据当前模式命名）
-      const title = document.title.replace(/[^\w\u4e00-\u9fa5]/g, '_').slice(0, 50);
+      const totalCanvas = await buildArticleCaptureCanvas();
+      const title = document.title;
       const mode = translationActive ? 'bilingual' : 'original';
-      await downloadOptimizedCanvas(totalCanvas, `zdftranslate-${mode}-${title}-${Date.now()}`);
-
+      const baseName = buildArticleExportBaseName(title, mode);
+      await downloadOptimizedCanvas(totalCanvas, baseName);
     } catch (error) {
       console.error('[ZDFTranslate] 截图失败:', error);
       alert('截图失败: ' + error.message);
@@ -1614,6 +1628,215 @@
       }
       updateCaptureButtonState();
     }
+  }
+
+  async function exportArticlePdf() {
+    const pdfBtn = document.getElementById('zdf-pdf-btn');
+
+    if (pdfBtn) {
+      pdfBtn.classList.add('zdf-capture-loading');
+      pdfBtn.title = '导出PDF中...';
+    }
+
+    try {
+      const totalCanvas = await buildArticleCaptureCanvas();
+      const mode = translationActive ? 'bilingual' : 'original';
+      const title = document.title;
+      const baseName = buildArticleExportBaseName(title, mode);
+
+      const jspdfNS = window.jspdf;
+      if (!jspdfNS || !jspdfNS.jsPDF) {
+        throw new Error('PDF模块未加载，请刷新页面后重试');
+      }
+
+      const { jsPDF } = jspdfNS;
+      // 使用 A4 分页导出，避免长文（尤其双语）在单页自定义尺寸下被截断
+      const pdf = new jsPDF({
+        orientation: 'p',
+        unit: 'mm',
+        format: 'a4',
+        compress: true,
+      });
+
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
+
+      // 以整页宽度铺满，反推每页可容纳的 canvas 像素高度
+      const sliceHeightPx = Math.max(1, Math.floor(totalCanvas.width * (pdfH / pdfW)));
+      const sourceCtx = totalCanvas.getContext('2d', { willReadFrequently: true });
+
+      const rowInkScore = (rowY) => {
+        const ySafe = Math.max(0, Math.min(totalCanvas.height - 1, rowY));
+        const row = sourceCtx.getImageData(0, ySafe, totalCanvas.width, 1).data;
+        let ink = 0;
+        const step = Math.max(2, Math.floor(totalCanvas.width / 900));
+        for (let x = 0; x < totalCanvas.width; x += step) {
+          const i = x * 4;
+          const r = row[i], g = row[i + 1], b = row[i + 2], a = row[i + 3];
+          if (a < 8) continue;
+          // 背景近白视为空白行，其它视为有内容（文本/边框/图片）
+          if (!(r > 247 && g > 247 && b > 247)) ink++;
+        }
+        return ink;
+      };
+
+      const pickSmartBreak = (fromY, idealBreakY) => {
+        const minSlice = Math.floor(sliceHeightPx * 0.64);
+        const minY = Math.max(fromY + minSlice, idealBreakY - 520);
+        const maxY = Math.min(totalCanvas.height - 1, idealBreakY + 320);
+
+        if (maxY <= minY) return Math.min(totalCanvas.height, idealBreakY);
+
+        let bestY = Math.min(totalCanvas.height, idealBreakY);
+        let bestScore = Infinity;
+
+        for (let y = minY; y <= maxY; y += 2) {
+          // 用更宽的竖向窗口找“段落间空带”，尽量避开正文行
+          let s = 0;
+          for (let k = -5; k <= 5; k++) s += rowInkScore(y + k);
+
+          // 轻微偏好靠近理想分页点，避免过早分页
+          const distancePenalty = Math.abs(y - idealBreakY) * 0.015;
+          const score = s + distancePenalty;
+
+          if (score < bestScore) {
+            bestScore = score;
+            bestY = y;
+            if (s === 0) break;
+          }
+        }
+
+        return Math.max(fromY + 160, Math.min(totalCanvas.height, bestY));
+      };
+
+      let y = 0;
+      let pageIndex = 0;
+
+      while (y < totalCanvas.height) {
+        const remaining = totalCanvas.height - y;
+        let currentSliceH;
+
+        if (remaining <= sliceHeightPx) {
+          currentSliceH = remaining;
+        } else {
+          const idealBreakY = y + sliceHeightPx;
+          const smartBreakY = pickSmartBreak(y, idealBreakY);
+          currentSliceH = Math.max(120, smartBreakY - y);
+        }
+
+        const pageCanvas = document.createElement('canvas');
+        pageCanvas.width = totalCanvas.width;
+        pageCanvas.height = currentSliceH;
+        const pageCtx = pageCanvas.getContext('2d');
+        pageCtx.drawImage(
+          totalCanvas,
+          0, y, totalCanvas.width, currentSliceH,
+          0, 0, totalCanvas.width, currentSliceH
+        );
+
+        const imgData = pageCanvas.toDataURL('image/jpeg', 0.95);
+        const renderH = (currentSliceH * pdfW) / totalCanvas.width;
+
+        if (pageIndex > 0) pdf.addPage();
+        pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, renderH, undefined, 'FAST');
+
+        // 不做页间重叠，避免同一句在前后两页重复出现
+        y += currentSliceH;
+        pageIndex++;
+      }
+
+      pdf.save(`${baseName}.pdf`);
+    } catch (error) {
+      console.error('[ZDFTranslate] PDF导出失败:', error);
+      alert('PDF导出失败: ' + error.message);
+    } finally {
+      if (pdfBtn) {
+        pdfBtn.classList.remove('zdf-capture-loading');
+      }
+      updatePdfButtonState();
+    }
+  }
+
+  async function warmupArticleForCapture(articleElement, options = {}) {
+    const { deep = false } = options;
+    const originalX = window.scrollX;
+    const originalY = window.scrollY;
+
+    try {
+      const docEl = document.documentElement;
+      const body = document.body;
+      const maxScrollY = Math.max(0,
+        (docEl?.scrollHeight || 0),
+        (body?.scrollHeight || 0)
+      ) - window.innerHeight;
+
+      const articleRect = articleElement.getBoundingClientRect();
+      const articleTopAbs = Math.max(0, window.scrollY + articleRect.top);
+      const articleBottomAbs = Math.max(articleTopAbs, window.scrollY + articleRect.bottom);
+
+      const targetBottom = Math.min(maxScrollY, articleBottomAbs + (deep ? 2600 : 1500));
+      const steps = deep ? 8 : 5;
+      const startY = Math.min(window.scrollY, articleTopAbs);
+
+      for (let i = 0; i <= steps; i++) {
+        const y = Math.min(targetBottom, startY + (targetBottom - startY) * (i / steps));
+        window.scrollTo(0, Math.max(0, Math.floor(y)));
+        await new Promise(resolve => setTimeout(resolve, deep ? 180 : 130));
+      }
+
+      // 给懒加载图片/正文一点收尾时间
+      await new Promise(resolve => setTimeout(resolve, deep ? 220 : 140));
+    } catch (e) {
+      console.warn('[ZDFTranslate] warmupArticleForCapture failed:', e);
+    } finally {
+      window.scrollTo(originalX, originalY);
+      await new Promise(resolve => setTimeout(resolve, 80));
+    }
+  }
+
+  function detectNextArticleBoundary(articleElement, startY, titleEl) {
+    const rootRect = articleElement.getBoundingClientRect();
+    const titleText = (titleEl?.innerText || '').trim().toLowerCase();
+    const scanBottom = startY + 10000;
+
+    const isDifferentFromCurrentTitle = (txt) => {
+      const t = (txt || '').trim().toLowerCase();
+      if (!t || t.length < 24) return false;
+      if (!titleText) return true;
+      return t !== titleText && !titleText.includes(t) && !t.includes(titleText);
+    };
+
+    let nextTop = Infinity;
+
+    // 仅使用强信号，避免误判导致正文截断
+    const h1Candidates = Array.from(document.querySelectorAll('h1')).map(el => ({ el, r: el.getBoundingClientRect() }));
+    for (const { el, r } of h1Candidates) {
+      if (!r || r.height < 24 || r.width < 200) continue;
+      if (r.top <= startY + 1000 || r.top > scanBottom) continue;
+      const centerX = r.left + r.width / 2;
+      const xOverlap = centerX >= rootRect.left - 200 && centerX <= rootRect.right + 200;
+      if (!xOverlap) continue;
+      if (!isDifferentFromCurrentTitle(el.innerText)) continue;
+      nextTop = Math.min(nextTop, r.top);
+    }
+
+    // 次强信号：明确的后续 article 块（且有标题结构）
+    const siblingArticles = Array.from(document.querySelectorAll('article, [role="article"]')).map(el => ({ el, r: el.getBoundingClientRect() }));
+    for (const { el, r } of siblingArticles) {
+      if (!r || r.height < 260 || r.width < 300) continue;
+      if (r.top <= startY + 1200 || r.top > scanBottom) continue;
+
+      const textLen = (el.innerText || '').trim().length;
+      const h1 = el.querySelector('h1');
+      const h2 = el.querySelector('h2');
+      const headingText = (h1?.innerText || h2?.innerText || '').trim();
+
+      if ((h1 || h2) && textLen > 700 && isDifferentFromCurrentTitle(headingText)) {
+        nextTop = Math.min(nextTop, r.top);
+      }
+    }
+
+    return Number.isFinite(nextTop) ? nextTop : null;
   }
 
   // 计算截图区域：仅保留“标题开始 -> 文章结束”的纵向范围，保留原网页样式
@@ -1676,23 +1899,40 @@
 
       if (flowNodes.length > 0) {
         let lastBottom = flowNodes[0].r.bottom;
+        let largeGapCount = 0;
+        let largeGapStreak = 0;
+
         for (let i = 1; i < flowNodes.length; i++) {
           const r = flowNodes[i].r;
           const gap = r.top - lastBottom;
-          // 出现明显断层，视为正文结束（下篇文章/推荐区常见）
-          if (gap > 220) break;
+
+          // 大图新闻常见“头图后大空白”，单次大 gap 不应直接判定结束
+          if (gap > 700) {
+            largeGapCount++;
+            largeGapStreak++;
+          } else if (gap > 420) {
+            largeGapCount++;
+            largeGapStreak = 0;
+          } else {
+            largeGapStreak = 0;
+          }
+
+          // 仅在多次明显断层时才提前停止（防止只截到头图）
+          if (largeGapStreak >= 2 || (largeGapCount >= 3 && gap > 520)) break;
+
           lastBottom = Math.max(lastBottom, r.bottom);
         }
-        endY = lastBottom + 64;
+
+        endY = lastBottom + 72;
       } else {
-        endY = Math.max(...contentNodes.map(el => el.getBoundingClientRect().bottom)) + 64;
+        endY = Math.max(...contentNodes.map(el => el.getBoundingClientRect().bottom)) + 72;
       }
     }
 
-    // 双语模式下：优先以最后翻译段作为正文结束锚点
+    // 双语模式下：最后翻译段通常更接近真实文末；只扩展不收缩，避免末尾被砍
     if (translatedNodes.length > 0) {
       const translatedBottom = Math.max(...translatedNodes.map(el => el.getBoundingClientRect().bottom));
-      endY = Math.min(endY, translatedBottom + 72);
+      endY = Math.max(endY, translatedBottom + 80);
     }
 
     // 截断到“正文之后的分界块”之前（避免把相关文章/评论区截进来）
@@ -1715,8 +1955,18 @@
       endY = Math.min(endY, boundaryTop - 10);
     }
 
-    // 限制到文章容器附近，防止过长
-    endY = Math.min(endY, rootRect.bottom + 120);
+    // 检测“下一篇文章起点”并强制裁断，避免把下篇一起截进来（Bloomberg 等）
+    const nextArticleTop = detectNextArticleBoundary(articleElement, startY, titleEl);
+    if (nextArticleTop) {
+      // 仅在“明显超出当前正文”时才裁断，防止误判把正文截短
+      const candidateEnd = nextArticleTop - 28;
+      if (candidateEnd > startY + 1000 && endY - candidateEnd > 260) {
+        endY = Math.min(endY, candidateEnd);
+      }
+    }
+
+    // 避免无限过长，但允许长文完整截图
+    endY = Math.min(endY, rootRect.bottom + 12000);
 
     // 左右边界：按真实内容边界裁剪，删除外侧空白（保留少量边距）
     let left = Math.max(0, rootRect.left);
@@ -2266,6 +2516,28 @@
     updateCaptureButtonState();
   }
 
+  function createPdfButton() {
+    if (document.getElementById('zdf-pdf-btn')) return;
+
+    const btn = document.createElement('div');
+    btn.id = 'zdf-pdf-btn';
+    btn.className = 'zdf-capture-btn zdf-pdf-btn';
+    btn.innerHTML = `
+      <svg class="zdf-capture-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 3 14 8 19 8"/>
+        <path d="M8 13h8M8 17h6"/>
+      </svg>
+    `;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      exportArticlePdf();
+    });
+
+    document.body.appendChild(btn);
+    updatePdfButtonState();
+  }
+
   function updateCaptureButtonState() {
     const btn = document.getElementById('zdf-capture-btn');
     if (!btn || btn.classList.contains('zdf-capture-loading')) return;
@@ -2274,12 +2546,22 @@
     btn.setAttribute('data-tip', tip);
   }
 
-  // 修改 updateFloatingButtonState：始终显示截图按钮，按状态动态切换模式
+  function updatePdfButtonState() {
+    const btn = document.getElementById('zdf-pdf-btn');
+    if (!btn || btn.classList.contains('zdf-capture-loading')) return;
+    const tip = translationActive ? '导出双语PDF' : '导出原文PDF';
+    btn.title = translationActive ? '导出双语PDF' : '导出原文PDF';
+    btn.setAttribute('data-tip', tip);
+  }
+
+  // 修改 updateFloatingButtonState：始终显示截图/导出按钮，按状态动态切换模式
   const _originalUpdateState = updateFloatingButtonState;
   updateFloatingButtonState = function() {
     _originalUpdateState();
     createCaptureButton();
+    createPdfButton();
     updateCaptureButtonState();
+    updatePdfButtonState();
   };
 
   // 页面加载完成后创建悬浮按钮

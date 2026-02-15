@@ -6,7 +6,8 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 
 - **Bilingual Display** — Side-by-side original and translated text
 - **Multiple Modes** — Bilingual / Replace / Hover translation
-- **Save as Image** — Export translation result as an image
+- **Save as Image** — Export current mode (original / bilingual) as image
+- **Export as PDF** — Export current mode (original / bilingual) as paginated PDF
 - **YouTube Dual Subtitles** — Original + translated subtitles
 - **Multiple Providers** — Google Translate, DeepL, OpenAI, Kimi, Zhipu, DeepSeek
 - **Custom Styles** — Adjustable colors, font size, spacing
