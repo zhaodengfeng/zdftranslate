@@ -63,6 +63,61 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (Array.isArray(config.customServices)) {
     customServices = config.customServices;
   }
+
+  const activeServiceEl = document.getElementById('activeService');
+
+  const ICON_REFRESH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"/></svg>';
+  const ICON_CUSTOM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>';
+  const ICON_LIST = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1.5"/><circle cx="4" cy="12" r="1.5"/><circle cx="4" cy="18" r="1.5"/></svg>';
+
+  function getServiceGroups() {
+    const groups = {
+      kimi: [document.getElementById('kimiApiKey')?.closest('.form-group'), document.getElementById('kimiModel')?.closest('.form-group')],
+      zhipu: [document.getElementById('zhipuApiKey')?.closest('.form-group'), document.getElementById('zhipuModel')?.closest('.form-group')],
+      aliyun: [document.getElementById('aliyunApiKey')?.closest('.form-group'), document.getElementById('aliyunModel')?.closest('.form-group')],
+      deepseek: [document.getElementById('deepseekApiKey')?.closest('.form-group'), document.getElementById('deepseekModel')?.closest('.form-group')],
+      openai: [document.getElementById('openaiApiKey')?.closest('.form-group'), document.getElementById('openaiModel')?.closest('.form-group')],
+      openrouter: [document.getElementById('openrouterApiKey')?.closest('.form-group'), document.getElementById('openrouterModel')?.closest('.form-group')],
+      google: [document.getElementById('googleApiKey')?.closest('.form-group')],
+      deepl: [document.getElementById('deeplApiKey')?.closest('.form-group')],
+      custom: [
+        document.getElementById('custom-service-divider'),
+        document.getElementById('customServicesContainer'),
+        document.getElementById('addCustomServiceBtn')?.closest('.form-group'),
+        document.getElementById('customServiceTemplate')
+      ]
+    };
+    return groups;
+  }
+
+  function updateServiceVisibility(service) {
+    const groups = getServiceGroups();
+    const allServiceKeys = Object.keys(groups);
+
+    allServiceKeys.forEach((key) => {
+      const isActive = key === service;
+      (groups[key] || []).forEach((el) => {
+        if (!el) return;
+        el.style.display = isActive ? '' : 'none';
+      });
+    });
+
+    // 精准控制卡片显示，避免“国内服务 + 国际服务同时出现”
+    const secCn = document.getElementById('sec-cn');
+    const secGlobal = document.getElementById('sec-global');
+
+    if (service === 'libretranslate') {
+      if (secCn) secCn.style.display = 'none';
+      if (secGlobal) secGlobal.style.display = 'none';
+      return;
+    }
+
+    const cnServices = new Set(['kimi', 'zhipu', 'aliyun', 'deepseek']);
+    const globalServices = new Set(['google', 'deepl', 'openai', 'openrouter', 'custom']);
+
+    if (secCn) secCn.style.display = cnServices.has(service) ? '' : 'none';
+    if (secGlobal) secGlobal.style.display = globalServices.has(service) ? '' : 'none';
+  }
   
   // 模型选择器映射
   
@@ -170,6 +225,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     autoEnableYouTubeCCEl.checked = config.autoEnableYouTubeCC !== false; // 默认为 true
   }
 
+  const showFloatingImageExportButtonEl = document.getElementById('showFloatingImageExportButton');
+  if (showFloatingImageExportButtonEl) {
+    showFloatingImageExportButtonEl.checked = config.showFloatingImageExportButton !== false; // 默认为 true
+  }
+
+  const showFloatingPdfExportButtonEl = document.getElementById('showFloatingPdfExportButton');
+  if (showFloatingPdfExportButtonEl) {
+    showFloatingPdfExportButtonEl.checked = config.showFloatingPdfExportButton !== false; // 默认为 true
+  }
+
   // 填充表单 - API Keys
   apiKeyInputs.kimi.value = config.apiKeys?.kimi || '';
   apiKeyInputs.zhipu.value = config.apiKeys?.zhipu || '';
@@ -188,7 +253,30 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('lineSpacing').value = config.style?.lineSpacing || '1.6';
   document.getElementById('backgroundHighlight').checked = config.style?.backgroundHighlight || false;
   document.getElementById('showWatermark').checked = config.style?.showWatermark !== false; // 默认开启
-  document.getElementById('excludedSites').value = (config.excludedSites || []).join('\n');
+
+  const currentService = config.translationService || 'libretranslate';
+  if (activeServiceEl) {
+    activeServiceEl.value = currentService;
+    activeServiceEl.addEventListener('change', () => {
+      updateServiceVisibility(activeServiceEl.value);
+    });
+  }
+  updateServiceVisibility(currentService);
+
+  // 侧边导航：平滑定位到对应 section，避免跳到页面顶部
+  document.querySelectorAll('.settings-sidebar .sidebar-link').forEach((link) => {
+    link.addEventListener('click', (e) => {
+      const href = link.getAttribute('href') || '';
+      if (!href.startsWith('#')) return;
+
+      const target = document.querySelector(href);
+      if (!target) return;
+
+      e.preventDefault();
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      history.replaceState(null, '', href);
+    });
+  });
 
   // 初始化所有模型选择器
   for (const [service, select] of Object.entries(modelSelectors)) {
@@ -241,8 +329,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       const statusEl = document.getElementById(`${service}Status`);
       
       btn.disabled = true;
-      const originalText = btn.textContent;
-      btn.textContent = '获取中...';
+      const originalHtml = btn.innerHTML;
+      btn.innerHTML = '<span>获取中...</span>';
       
       if (statusEl) {
         statusEl.textContent = '获取远程模型...';
@@ -256,14 +344,14 @@ document.addEventListener('DOMContentLoaded', async () => {
           statusEl.className = 'model-status error';
         }
         btn.disabled = false;
-        btn.textContent = originalText;
+        btn.innerHTML = originalHtml;
         return;
       }
       
       const success = await fetchRemoteModels(service, select, apiKey, select.value);
       
       btn.disabled = false;
-      btn.textContent = originalText;
+      btn.innerHTML = originalHtml;
       
       if (success) {
         if (statusEl) {
@@ -301,13 +389,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 切换到自定义输入
         select.style.display = 'none';
         input.style.display = 'block';
-        btn.textContent = '📋 选择列表';
+        btn.innerHTML = `${ICON_LIST}<span>选择列表</span>`;
         input.focus();
       } else {
         // 切换到选择列表
         select.style.display = 'block';
         input.style.display = 'none';
-        btn.textContent = '✏️ 自定义';
+        btn.innerHTML = `${ICON_CUSTOM}<span>自定义</span>`;
         
         // 如果输入框有值，添加到选择列表并选中
         if (input.value.trim()) {
@@ -362,10 +450,16 @@ document.addEventListener('DOMContentLoaded', async () => {
       const autoTranslateYouTubeEl = document.getElementById('autoTranslateYouTube');
       const autoEnableYouTubeCCEl = document.getElementById('autoEnableYouTubeCC');
       
+      const showFloatingImageExportButtonEl = document.getElementById('showFloatingImageExportButton');
+      const showFloatingPdfExportButtonEl = document.getElementById('showFloatingPdfExportButton');
+
       const newConfig = {
         ...config,
+        translationService: activeServiceEl ? activeServiceEl.value : (config.translationService || 'libretranslate'),
         autoTranslateYouTube: autoTranslateYouTubeEl ? autoTranslateYouTubeEl.checked : true,
         autoEnableYouTubeCC: autoEnableYouTubeCCEl ? autoEnableYouTubeCCEl.checked : true,
+        showFloatingImageExportButton: showFloatingImageExportButtonEl ? showFloatingImageExportButtonEl.checked : true,
+        showFloatingPdfExportButton: showFloatingPdfExportButtonEl ? showFloatingPdfExportButtonEl.checked : true,
         apiKeys: {
           kimi: apiKeyInputs.kimi.value.trim(),
           zhipu: apiKeyInputs.zhipu.value.trim(),
@@ -385,10 +479,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           backgroundHighlight: document.getElementById('backgroundHighlight').checked,
           showWatermark: document.getElementById('showWatermark').checked
         },
-        excludedSites: document.getElementById('excludedSites').value
-          .split('\n')
-          .map(s => s.trim())
-          .filter(s => s.length > 0)
+        excludedSites: []
       };
 
       await saveConfig(newConfig);
@@ -410,6 +501,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         translationService: 'libretranslate',
         autoTranslateYouTube: true, // 默认开启
         autoEnableYouTubeCC: true, // 默认开启
+        showFloatingImageExportButton: true,
+        showFloatingPdfExportButton: true,
         selectedModels: {
           kimi: 'moonshot-v1-8k',
           zhipu: 'glm-4-flash',
@@ -473,7 +566,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         modelSelect.style.display = 'none';
         modelInput.style.display = 'block';
         modelInput.value = service.selectedModel;
-        clone.querySelector('.toggle-custom-model-custom').textContent = '📋 选择列表';
+        clone.querySelector('.toggle-custom-model-custom').innerHTML = `${ICON_LIST}<span>选择列表</span>`;
       }
       
       // 绑定事件
@@ -516,8 +609,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const statusEl = clone.querySelector('.custom-service-status');
         
         btn.disabled = true;
-        const originalText = btn.textContent;
-        btn.textContent = '获取中...';
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<span>获取中...</span>';
         
         if (statusEl) {
           statusEl.textContent = '获取远程模型...';
@@ -530,14 +623,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             statusEl.className = 'custom-service-status error';
           }
           btn.disabled = false;
-          btn.textContent = originalText;
+          btn.innerHTML = originalHtml;
           return;
         }
         
         const models = await fetchCustomModels(service.apiBaseUrl, service.apiKey, service.mode);
         
         btn.disabled = false;
-        btn.textContent = originalText;
+        btn.innerHTML = originalHtml;
         
         if (models.length > 0) {
           renderCustomServiceModels(modelSelect, service.selectedModel, models);
@@ -567,12 +660,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (modelInput.style.display === 'none') {
           modelSelect.style.display = 'none';
           modelInput.style.display = 'block';
-          btn.textContent = '📋 选择列表';
+          btn.innerHTML = `${ICON_LIST}<span>选择列表</span>`;
           modelInput.focus();
         } else {
           modelSelect.style.display = 'block';
           modelInput.style.display = 'none';
-          btn.textContent = '✏️ 自定义';
+          btn.innerHTML = `${ICON_CUSTOM}<span>自定义</span>`;
           
           if (modelInput.value.trim()) {
             const customModel = modelInput.value.trim();

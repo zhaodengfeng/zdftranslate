@@ -1,23 +1,32 @@
 # Changelog
 
-## v1.9.9 (2026-02-15)
+## v2.1.0 (2026-02-16)
 
-- **Service Worker stability**: Hardened config save response handling and provider API-key validation to avoid opaque 401/empty errors.
-- **DeepL fix**: Fixed `source_lang=undefined` request bug when using auto source language.
-- **Options page usability**: Added timeout-safe remote model fetch helper and fallback paths to prevent setup page stalls.
-- **Custom/OpenRouter compatibility**: Improved Anthropic/OpenAI-compatible model list parsing and fixed Zhipu model API auth header.
-- **Popup consistency**: Added robust fallback when configured translation service no longer exists (e.g. removed custom service).
-- **Capture reliability/performance**: Switched html2canvas to `allowTaint:false` + timeout to reduce CORS hard-fail and hanging image loads.
-- **Config consistency**: Reset defaults now align to free default service (`libretranslate`).
+- Release-candidate cleanup for Chrome Web Store submission.
+- Settings page refined:
+  - Unified quick service selection flow (show only selected service config).
+  - Removed excluded-sites module from UI.
+  - Updated labels/copy in “一些开关选项”.
+  - Reworked section icons to neutral SVG style; adjusted distinction where requested.
+  - Custom service title style aligned with regular labels; removed leading icon.
+- Floating actions fixed:
+  - Dynamic relayout for PDF/Image/Translate buttons to avoid blank gaps when a middle button is disabled.
+- YouTube behavior:
+  - Auto bilingual subtitles wording updated; internal CC+English strategy retained.
+- Code hygiene:
+  - Reduced stale UI references and improved button icon rendering consistency during loading/toggle.
 
-## v1.8.21 (2026-02-14)
+## v1.9.11 (2026-02-16)
 
-- **Save as Image**: Added "Save as Image" feature for exporting translations.
-- **Improved UI**: Better floating button and popup layout.
-- **Export Polish**: Added branding/watermark support for exported images.
+- Added a new section **一些开关选项** for:
+  - Auto-enable bilingual subtitles on YouTube
+  - Floating image export button toggle
+  - Floating PDF export button toggle
+  - Plugin watermark toggle
+- Floating image/PDF icon visibility now follows user settings.
+- Floating toggle does **not** affect selection-popup image export.
+- Refined YouTube subtitle behavior: when auto bilingual subtitle is enabled, built-in strategy now auto tries CC + English caption track (no extra switch).
+- Redesigned settings flow: added **快速配置服务下拉**; only selected service settings are shown.
+- Moved export watermark setting into switch options and renamed text to **显示插件水印**.
+- Removed the **排除网站** module from settings UI.
 
-## v1.5.7 (2026-02-11)
-
-- Added **YouTube Dual Subtitles** (original + translated subtitle display)
-- Improved subtitle segmentation and rendering stability
-- Store release packaging cleanup

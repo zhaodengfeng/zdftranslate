@@ -19,67 +19,46 @@
     <div class="settings-layout">
       <aside class="settings-sidebar">
         <div class="sidebar-title">设置导航</div>
-        <a href="#sec-free" class="sidebar-link">免费服务</a>
-        <a href="#sec-cn" class="sidebar-link">国内 AI 服务</a>
-        <a href="#sec-global" class="sidebar-link">国际翻译服务</a>
-        <a href="#sec-video" class="sidebar-link">视频翻译设置</a>
+        <a href="#sec-free" class="sidebar-link">服务快速配置</a>
+        <a href="#sec-video" class="sidebar-link">一些开关选项</a>
         <a href="#sec-style" class="sidebar-link">外观设置</a>
-        <a href="#sec-export" class="sidebar-link">导出设置</a>
-        <a href="#sec-excluded" class="sidebar-link">排除网站</a>
         <a href="#sec-about" class="sidebar-link">关于</a>
       </aside>
 
       <main class="settings-main">
 
-      <!-- 免费服务 -->
+      <!-- 服务快速配置 -->
       <section class="card" id="sec-free">
         <div class="card-header">
           <div class="card-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="8" width="18" height="12" rx="2"/>
-              <path d="M12 8V5"/>
-              <path d="M12 5C10.5 3.5 8 3.5 7 5"/>
-              <path d="M12 5C13.5 3.5 16 3.5 17 5"/>
-              <circle cx="12" cy="14" r="2"/>
-            </svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="6" rx="2"/><rect x="3" y="14" width="18" height="6" rx="2"/><line x1="7" y1="7" x2="7.01" y2="7"/><line x1="7" y1="17" x2="7.01" y2="17"/><line x1="12" y1="7" x2="17" y2="7"/><line x1="12" y1="17" x2="17" y2="17"/></svg>
           </div>
           <div>
-            <h2 class="card-title">免费翻译服务</h2>
-            <p class="card-subtitle">无需配置 API Key，开箱即用</p>
+            <h2 class="card-title">翻译服务快速配置</h2>
+            <p class="card-subtitle">配置翻译服务API与模型</p>
           </div>
         </div>
 
-        <div class="form-group">
-          <label>LibreTranslate（默认）</label>
-          <p class="service-note">
-            开源免费翻译服务，支持中文、英文、日文、韩文、法文、德文、西班牙文、俄文等。<br>
-            无需配置，直接使用。
-          </p>
+        <div class="form-group quick-service-picker">
+          <label>当前使用服务</label>
+          <select id="activeService">
+            <option value="libretranslate">LibreTranslate（免费免配置）</option>
+            <option value="aliyun">阿里云百炼</option>
+            <option value="kimi">Kimi（月之暗面）</option>
+            <option value="zhipu">智谱清言（GLM）</option>
+            <option value="deepseek">DeepSeek</option>
+            <option value="openai">OpenAI</option>
+            <option value="openrouter">OpenRouter</option>
+            <option value="google">Google Translate API</option>
+            <option value="deepl">DeepL API</option>
+            <option value="custom">自定义服务</option>
+          </select>
+          <p class="service-note">提示：选择后仅显示对应配置区域，保存即生效。</p>
         </div>
       </section>
 
       <!-- API 密钥设置 - 国内AI -->
       <section class="card" id="sec-cn">
-        <div class="card-header">
-          <div class="card-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="4" y="4" width="16" height="16" rx="2"/>
-              <path d="M9 9h6v6H9z"/>
-              <path d="M9 3v2"/>
-              <path d="M15 3v2"/>
-              <path d="M9 19v2"/>
-              <path d="M15 19v2"/>
-              <path d="M3 9h2"/>
-              <path d="M3 15h2"/>
-              <path d="M19 9h2"/>
-              <path d="M19 15h2"/>
-            </svg>
-          </div>
-          <div>
-            <h2 class="card-title">国内 AI 服务（推荐）</h2>
-            <p class="card-subtitle">配置国内 AI 服务 API 密钥，访问更稳定快速</p>
-          </div>
-        </div>
 
         <div class="form-group">
           <label>阿里云百炼 API Key</label>
@@ -95,8 +74,8 @@
             <input type="text" id="aliyunModelCustom" class="model-custom-input" placeholder="输入自定义模型名" style="display:none;">
           </div>
           <div class="model-actions">
-            <button class="refresh-models" data-service="aliyun">🔄 获取远程模型</button>
-            <button class="toggle-custom-model" data-service="aliyun">✏️ 自定义</button>
+            <button class="refresh-models" data-service="aliyun"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"/></svg><span>获取远程模型</span></button>
+            <button class="toggle-custom-model" data-service="aliyun"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg><span>自定义</span></button>
           </div>
           <span class="model-status" id="aliyunStatus"></span>
         </div>
@@ -115,8 +94,8 @@
             <input type="text" id="kimiModelCustom" class="model-custom-input" placeholder="输入自定义模型名" style="display:none;">
           </div>
           <div class="model-actions">
-            <button class="refresh-models" data-service="kimi">🔄 获取远程模型</button>
-            <button class="toggle-custom-model" data-service="kimi">✏️ 自定义</button>
+            <button class="refresh-models" data-service="kimi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"/></svg><span>获取远程模型</span></button>
+            <button class="toggle-custom-model" data-service="kimi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg><span>自定义</span></button>
           </div>
           <span class="model-status" id="kimiStatus"></span>
         </div>
@@ -135,8 +114,8 @@
             <input type="text" id="zhipuModelCustom" class="model-custom-input" placeholder="输入最新模型名，如: glm-4.7" style="display:none;">
           </div>
           <div class="model-actions">
-            <button class="refresh-models" data-service="zhipu">🔄 获取远程模型</button>
-            <button class="toggle-custom-model" data-service="zhipu">✏️ 自定义</button>
+            <button class="refresh-models" data-service="zhipu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"/></svg><span>获取远程模型</span></button>
+            <button class="toggle-custom-model" data-service="zhipu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg><span>自定义</span></button>
           </div>
           <span class="model-status" id="zhipuStatus"></span>
         </div>
@@ -155,8 +134,8 @@
             <input type="text" id="deepseekModelCustom" class="model-custom-input" placeholder="输入自定义模型名" style="display:none;">
           </div>
           <div class="model-actions">
-            <button class="refresh-models" data-service="deepseek">🔄 获取远程模型</button>
-            <button class="toggle-custom-model" data-service="deepseek">✏️ 自定义</button>
+            <button class="refresh-models" data-service="deepseek"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"/></svg><span>获取远程模型</span></button>
+            <button class="toggle-custom-model" data-service="deepseek"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg><span>自定义</span></button>
           </div>
           <span class="model-status" id="deepseekStatus"></span>
         </div>
@@ -164,19 +143,6 @@
 
       <!-- API 密钥设置 - 国际服务 -->
       <section class="card" id="sec-global">
-        <div class="card-header">
-          <div class="card-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M2 12h20"/>
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
-            </svg>
-          </div>
-          <div>
-            <h2 class="card-title">国际翻译服务</h2>
-            <p class="card-subtitle">配置国际翻译服务 API 密钥</p>
-          </div>
-        </div>
 
         <div class="form-group">
           <label>Google Translate API Key</label>
@@ -205,14 +171,14 @@
             <input type="text" id="openaiModelCustom" class="model-custom-input" placeholder="输入自定义模型名" style="display:none;">
           </div>
           <div class="model-actions">
-            <button class="refresh-models" data-service="openai">🔄 获取远程模型</button>
-            <button class="toggle-custom-model" data-service="openai">✏️ 自定义</button>
+            <button class="refresh-models" data-service="openai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"/></svg><span>获取远程模型</span></button>
+            <button class="toggle-custom-model" data-service="openai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg><span>自定义</span></button>
           </div>
           <span class="model-status" id="openaiStatus"></span>
         </div>
 
         <!-- OpenRouter 配置 -->
-        <div class="form-group service-divider">
+        <div class="form-group service-divider" id="openrouter-divider">
           <label>OpenRouter API Key</label>
           <input type="password" id="openrouterApiKey" placeholder="输入 OpenRouter API Key">
           <a href="https://openrouter.ai/keys" target="_blank">如何获取？</a>
@@ -226,14 +192,14 @@
             <input type="text" id="openrouterModelCustom" class="model-custom-input" placeholder="输入自定义模型名" style="display:none;">
           </div>
           <div class="model-actions">
-            <button class="refresh-models" data-service="openrouter">🔄 获取远程模型</button>
-            <button class="toggle-custom-model" data-service="openrouter">✏️ 自定义</button>
+            <button class="refresh-models" data-service="openrouter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"/></svg><span>获取远程模型</span></button>
+            <button class="toggle-custom-model" data-service="openrouter"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg><span>自定义</span></button>
           </div>
           <span class="model-status" id="openrouterStatus"></span>
         </div>
 
         <!-- 自定义服务管理 -->
-        <div class="form-group service-divider">
+        <div class="form-group service-divider" id="custom-service-divider">
           <label>自定义翻译服务</label>
           <p class="service-note">添加兼容 OpenAI 或 Anthropic API 格式的自定义服务</p>
         </div>
@@ -241,14 +207,22 @@
           <!-- 动态加载自定义服务列表 -->
         </div>
         <div class="form-group">
-          <button id="addCustomServiceBtn" class="btn-secondary">➕ 添加自定义服务</button>
+          <button id="addCustomServiceBtn" class="btn-secondary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>添加自定义服务</span></button>
         </div>
         <!-- 自定义服务编辑模板 (隐藏) -->
         <div id="customServiceTemplate" style="display:none;">
           <div class="custom-service-card" data-service-id="">
             <div class="custom-service-header">
               <input type="text" class="custom-service-name" placeholder="服务名称">
-              <button class="btn-icon delete-custom-service" title="删除">🗑️</button>
+              <button class="btn-icon delete-custom-service" title="删除" aria-label="删除">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                  <line x1="10" y1="11" x2="10" y2="17"/>
+                  <line x1="14" y1="11" x2="14" y2="17"/>
+                </svg>
+              </button>
             </div>
             <div class="custom-service-body">
               <div class="form-row">
@@ -275,8 +249,8 @@
                   <input type="text" class="custom-service-model-custom model-custom-input" placeholder="输入自定义模型名" style="display:none;">
                 </div>
                 <div class="model-actions">
-                  <button class="refresh-custom-models">🔄 获取模型</button>
-                  <button class="toggle-custom-model-custom">✏️ 自定义</button>
+                  <button class="refresh-custom-models"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"/><path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"/></svg><span>获取模型</span></button>
+                  <button class="toggle-custom-model-custom"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg><span>自定义</span></button>
                 </div>
                 <span class="model-status custom-service-status"></span>
               </div>
@@ -285,33 +259,44 @@
         </div>
       </section>
 
-      <!-- 视频翻译设置 -->
+      <!-- 一些开关选项 -->
       <section class="card" id="sec-video">
         <div class="card-header">
           <div class="card-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="5 3 19 12 5 21 5 3"/>
-            </svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v6c0 4.4-3 8.4-7 9-4-0.6-7-4.6-7-9V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
           </div>
           <div>
-            <h2 class="card-title">视频翻译设置</h2>
-            <p class="card-subtitle">YouTube 等视频网站的字幕增强</p>
+            <h2 class="card-title">一些开关选项</h2>
+            <p class="card-subtitle">YouTube 字幕与悬浮导出图标和水印控制</p>
           </div>
         </div>
 
         <div class="form-group checkbox">
           <label>
             <input type="checkbox" id="autoTranslateYouTube">
-            访问 YouTube 时自动开启双语字幕
+            自动开启YouTube双语字幕
           </label>
         </div>
 
         <div class="form-group checkbox">
           <label>
-            <input type="checkbox" id="autoEnableYouTubeCC">
-            自动开启 YouTube 自带字幕 (CC) 并尝试切换为英语
+            <input type="checkbox" id="showFloatingImageExportButton">
+            开启导出图片功能
           </label>
-          <p class="hint">若视频没有字幕，此选项可能无效。</p>
+        </div>
+
+        <div class="form-group checkbox">
+          <label>
+            <input type="checkbox" id="showFloatingPdfExportButton">
+            开启导出PDF功能
+          </label>
+        </div>
+
+        <div class="form-group checkbox">
+          <label>
+            <input type="checkbox" id="showWatermark" checked>
+            开启水印功能
+          </label>
         </div>
       </section>
 
@@ -319,12 +304,12 @@
       <section class="card" id="sec-style">
         <div class="card-header">
           <div class="card-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="13.5" cy="6.5" r=".5"/>
-              <circle cx="17.5" cy="10.5" r=".5"/>
-              <circle cx="8.5" cy="7.5" r=".5"/>
-              <circle cx="6.5" cy="12.5" r=".5"/>
-              <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="13.5" cy="6.5" r="1"/>
+              <circle cx="17.5" cy="10.5" r="1"/>
+              <circle cx="8.5" cy="7.5" r="1"/>
+              <circle cx="6.5" cy="12.5" r="1"/>
+              <path d="M12 3a9 9 0 0 0 0 18h.6a2.4 2.4 0 0 0 2.4-2.4c0-.6-.2-1.1-.6-1.5-.4-.4-.6-.8-.6-1.3a2.2 2.2 0 0 1 2.2-2.2H18a3 3 0 0 0 3-3A8.8 8.8 0 0 0 12 3Z"/>
             </svg>
           </div>
           <div>
@@ -365,55 +350,14 @@
 
       </section>
 
-      <!-- 导出设置 -->
-      <section class="card" id="sec-export">
-        <div class="card-header">
-          <div class="card-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="2"/>
-              <circle cx="8.5" cy="8.5" r="1.5"/>
-              <polyline points="21 15 16 10 5 21"/>
-            </svg>
-          </div>
-          <div>
-            <h2 class="card-title">导出设置</h2>
-            <p class="card-subtitle">截图与图片导出相关选项</p>
-          </div>
-        </div>
-        <div class="form-group checkbox">
-          <label>
-            <input type="checkbox" id="showWatermark" checked>
-            导出图片/截图显示插件水印
-          </label>
-        </div>
-      </section>
-
-      <!-- 排除网站 -->
-      <section class="card" id="sec-excluded">
-        <div class="card-header">
-          <div class="card-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="m4.9 4.9 14.2 14.2"/>
-            </svg>
-          </div>
-          <div>
-            <h2 class="card-title">排除网站</h2>
-            <p class="card-subtitle">以下网站将不会触发"整页翻译"（每行一个域名）</p>
-          </div>
-        </div>
-        <textarea id="excludedSites" rows="5" placeholder="example.com&#10;another-site.org"></textarea>
-        <p class="hint" style="margin-top:8px;">提示：仅影响悬浮按钮触发的整页翻译，不影响右键划词翻译。</p>
-      </section>
-
       <!-- 关于 -->
       <section class="card" id="sec-about">
         <div class="card-header">
           <div class="card-icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/>
-              <path d="M12 16v-4"/>
-              <path d="M12 8h.01"/>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9"/>
+              <path d="M12 11.5v5"/>
+              <circle cx="12" cy="8" r="1" fill="currentColor" stroke="none"/>
             </svg>
           </div>
           <div>

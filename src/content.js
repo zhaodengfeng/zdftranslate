@@ -27,6 +27,8 @@
       deepseek: ''
     },
     excludedSites: [],
+    showFloatingImageExportButton: true,
+    showFloatingPdfExportButton: true,
     style: {
       translationColor: '#111111',
       translationSize: '0.95em',
@@ -35,11 +37,17 @@
     }
   };
 
+  let configReady = false;
+
   // 从存储加载配置
   chrome.storage.sync.get(['zdfConfig'], (result) => {
     if (result.zdfConfig) {
       config = { ...config, ...result.zdfConfig };
     }
+    configReady = true;
+    setTimeout(() => {
+      updateFloatingButtonState();
+    }, 0);
   });
   
   // 重新加载配置
@@ -74,6 +82,9 @@
         removeTranslations();
         setTimeout(init, 100);
       }
+      setTimeout(() => {
+        updateFloatingButtonState();
+      }, 0);
     } else if (request.action === 'translateSelection') {
       translateText(request.text).then(sendResponse);
       return true;
@@ -2594,6 +2605,11 @@
     updateCaptureButtonState();
   }
 
+  function removeCaptureButton() {
+    const btn = document.getElementById('zdf-capture-btn');
+    if (btn) btn.remove();
+  }
+
   function createPdfButton() {
     if (document.getElementById('zdf-pdf-btn')) return;
 
@@ -2616,6 +2632,11 @@
     updatePdfButtonState();
   }
 
+  function removePdfButton() {
+    const btn = document.getElementById('zdf-pdf-btn');
+    if (btn) btn.remove();
+  }
+
   function updateCaptureButtonState() {
     const btn = document.getElementById('zdf-capture-btn');
     if (!btn || btn.classList.contains('zdf-capture-loading')) return;
@@ -2632,14 +2653,60 @@
     btn.setAttribute('data-tip', tip);
   }
 
-  // 修改 updateFloatingButtonState：始终显示截图/导出按钮，按状态动态切换模式
+  function relayoutFloatingActionButtons() {
+    const floatingBtn = document.getElementById('zdf-floating-translate-btn');
+    if (!floatingBtn) return;
+
+    const pdfBtn = document.getElementById('zdf-pdf-btn');
+    const imageBtn = document.getElementById('zdf-capture-btn');
+
+    const baseBottom = parseInt(getComputedStyle(floatingBtn).bottom, 10) || 20;
+    const baseRight = parseInt(getComputedStyle(floatingBtn).right, 10) || 20;
+    const gap = 8;
+
+    let nextBottom = baseBottom + floatingBtn.offsetHeight + gap;
+
+    // 顺序保持：最上面 PDF，中间图片，最下面翻译
+    // 先放离翻译最近的图片按钮，再把 PDF 放到更上方，避免中间留空。
+    if (imageBtn) {
+      imageBtn.style.bottom = `${nextBottom}px`;
+      imageBtn.style.right = `${baseRight}px`;
+      nextBottom += imageBtn.offsetHeight + gap;
+    }
+
+    if (pdfBtn) {
+      pdfBtn.style.bottom = `${nextBottom}px`;
+      pdfBtn.style.right = `${baseRight}px`;
+    }
+  }
+
+  // 修改 updateFloatingButtonState：根据设置决定是否显示图片/PDF悬浮导出图标
   const _originalUpdateState = updateFloatingButtonState;
   updateFloatingButtonState = function() {
     _originalUpdateState();
-    createCaptureButton();
-    createPdfButton();
-    updateCaptureButtonState();
-    updatePdfButtonState();
+
+    // 等配置读取完成后再决定是否显示导出图标，避免刷新后误显示
+    if (!configReady) {
+      removeCaptureButton();
+      removePdfButton();
+      return;
+    }
+
+    if (config.showFloatingImageExportButton !== false) {
+      createCaptureButton();
+      updateCaptureButtonState();
+    } else {
+      removeCaptureButton();
+    }
+
+    if (config.showFloatingPdfExportButton !== false) {
+      createPdfButton();
+      updatePdfButtonState();
+    } else {
+      removePdfButton();
+    }
+
+    relayoutFloatingActionButtons();
   };
 
   // 页面加载完成后创建悬浮按钮

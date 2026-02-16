@@ -136,6 +136,8 @@ function getDefaultConfig() {
     translationService: 'libretranslate',
     autoTranslateYouTube: true,
     autoEnableYouTubeCC: true,
+    showFloatingImageExportButton: true,
+    showFloatingPdfExportButton: true,
     selectedModels: { 
       ...DEFAULT_MODELS,
       openrouter: 'openai/gpt-4o-mini'
@@ -178,6 +180,16 @@ chrome.runtime.onInstalled.addListener((details) => {
 
           if (!cfg.selectedModels) {
             cfg.selectedModels = { ...DEFAULT_MODELS };
+            needsUpdate = true;
+          }
+
+          if (typeof cfg.showFloatingImageExportButton !== 'boolean') {
+            cfg.showFloatingImageExportButton = true;
+            needsUpdate = true;
+          }
+
+          if (typeof cfg.showFloatingPdfExportButton !== 'boolean') {
+            cfg.showFloatingPdfExportButton = true;
             needsUpdate = true;
           }
 

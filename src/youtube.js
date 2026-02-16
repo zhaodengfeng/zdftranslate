@@ -9,6 +9,9 @@
   let observer = null;
   const translationCache = new Map(); 
   let currentOverlay = null;
+  let ccRetryTimer = null;
+  let ccWatchdogTimer = null;
+  let lastSubtitleSeenAt = 0;
 
   let config = {
     targetLang: 'zh-CN',
@@ -51,6 +54,23 @@
       } else if (config.autoTranslateYouTube === false && translationActive) {
         stopYouTubeTranslation();
       }
+
+      if (translationActive) {
+        if (config.autoTranslateYouTube === false) {
+          if (ccRetryTimer) {
+            clearTimeout(ccRetryTimer);
+            ccRetryTimer = null;
+          }
+          if (ccWatchdogTimer) {
+            clearInterval(ccWatchdogTimer);
+            ccWatchdogTimer = null;
+          }
+        } else {
+          scheduleEnsureCaptions(0, 200);
+          startCaptionWatchdog();
+        }
+      }
+
       // Trigger a re-render if active to apply new styles
       if (translationActive && currentOverlay) {
           const lastText = currentOverlay.dataset.lastText;
@@ -68,8 +88,10 @@
     injectStyles();
     createOverlay();
 
-    if (config.autoEnableYouTubeCC !== false) {
-      enableCaptionsWithRetry(0);
+    // 内置策略：只要开启自动双语字幕，就自动尝试开启CC并切英文轨
+    if (config.autoTranslateYouTube !== false) {
+      scheduleEnsureCaptions(0);
+      startCaptionWatchdog();
     }
 
     observeSubtitles();
@@ -80,6 +102,14 @@
     if (observer) {
       observer.disconnect();
       observer = null;
+    }
+    if (ccRetryTimer) {
+      clearTimeout(ccRetryTimer);
+      ccRetryTimer = null;
+    }
+    if (ccWatchdogTimer) {
+      clearInterval(ccWatchdogTimer);
+      ccWatchdogTimer = null;
     }
     if (currentOverlay) {
         currentOverlay.remove();
@@ -102,23 +132,85 @@
       overlay.style.display = 'none';
   }
 
-  function enableCaptionsWithRetry(attempt) {
-    if (attempt > 10) return; 
-    
+  function scheduleEnsureCaptions(attempt = 0, delayMs = 600) {
+    if (ccRetryTimer) clearTimeout(ccRetryTimer);
+    ccRetryTimer = setTimeout(() => {
+      ensureCaptionsWithRetry(attempt);
+    }, delayMs);
+  }
+
+  function ensureCaptionsWithRetry(attempt) {
+    if (!translationActive || config.autoTranslateYouTube === false) return;
+    if (attempt > 15) return;
+
     const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
     if (!player) {
-        setTimeout(() => enableCaptionsWithRetry(attempt + 1), 2000);
-        return;
+      scheduleEnsureCaptions(attempt + 1, 1200);
+      return;
     }
 
     const ccBtn = player.querySelector('.ytp-subtitles-button');
-    if (ccBtn) {
-        if (ccBtn.getAttribute('aria-pressed') === 'false') {
-            ccBtn.click();
-        }
-    } else {
-        setTimeout(() => enableCaptionsWithRetry(attempt + 1), 2000);
+    if (!ccBtn) {
+      scheduleEnsureCaptions(attempt + 1, 1200);
+      return;
     }
+
+    if (ccBtn.getAttribute('aria-pressed') === 'false') {
+      ccBtn.click();
+    }
+
+    const switched = trySwitchCaptionTrackToEnglish(player);
+
+    // 没切到英语或字幕轨还没准备好，继续重试
+    if (!switched) {
+      scheduleEnsureCaptions(attempt + 1, 1000);
+    }
+  }
+
+  function trySwitchCaptionTrackToEnglish(player) {
+    try {
+      const api = player;
+      if (!api || typeof api.getOption !== 'function' || typeof api.setOption !== 'function') {
+        return false;
+      }
+
+      const trackList = api.getOption('captions', 'tracklist');
+      if (!Array.isArray(trackList) || trackList.length === 0) {
+        return false;
+      }
+
+      // 优先英文人工字幕，其次英文自动字幕（asr）
+      const englishTrack =
+        trackList.find(t => t?.languageCode === 'en' && !t?.kind) ||
+        trackList.find(t => t?.languageCode === 'en') ||
+        null;
+
+      if (!englishTrack) return false;
+
+      const currentTrack = api.getOption('captions', 'track');
+      if (currentTrack?.languageCode === 'en') {
+        return true;
+      }
+
+      api.setOption('captions', 'track', englishTrack);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function startCaptionWatchdog() {
+    if (ccWatchdogTimer) clearInterval(ccWatchdogTimer);
+
+    ccWatchdogTimer = setInterval(() => {
+      if (!translationActive || config.autoTranslateYouTube === false) return;
+
+      // 15 秒内没抓到字幕，认为可能没成功自动开启，再尝试一次
+      const stale = Date.now() - lastSubtitleSeenAt > 15000;
+      if (stale) {
+        scheduleEnsureCaptions(0, 300);
+      }
+    }, 5000);
   }
 
   function observeSubtitles() {
@@ -174,6 +266,7 @@
       segments.forEach(seg => {
           fullText += seg.textContent + ' ';
       });
+      lastSubtitleSeenAt = Date.now();
       fullText = fullText.trim();
 
       if (!fullText) {
@@ -326,9 +419,20 @@
           if (currentOverlay) {
               currentOverlay.innerHTML = '';
               currentOverlay.style.display = 'none';
+              delete currentOverlay.dataset.lastText;
           }
+          lastSubtitleSeenAt = 0;
+
           if (config.autoTranslateYouTube !== false) {
-             startYouTubeTranslation();
+            if (!translationActive) {
+              startYouTubeTranslation();
+            } else {
+              observeSubtitles();
+              if (config.autoTranslateYouTube !== false) {
+                scheduleEnsureCaptions(0, 500);
+                startCaptionWatchdog();
+              }
+            }
           }
       }
     }

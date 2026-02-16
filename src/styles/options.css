@@ -156,13 +156,15 @@ header p {
 .card-icon {
   width: 40px;
   height: 40px;
-  background: linear-gradient(135deg, var(--primary-100), var(--primary-200));
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
   border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 20px;
   flex-shrink: 0;
+  color: #475569;
 }
 
 .card-icon svg {
@@ -198,6 +200,23 @@ header p {
   margin-top: 5px;
 }
 
+.quick-service-picker {
+  padding: 16px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f8fbff, #eef4ff);
+}
+
+.quick-service-picker label {
+  color: #1d4ed8;
+  font-weight: 650;
+}
+
+.quick-service-picker select {
+  font-size: 15px;
+  font-weight: 600;
+}
+
 .form-group {
   margin-bottom: 20px;
 }
@@ -212,6 +231,17 @@ header p {
   margin-bottom: 8px;
   color: var(--text-normal);
   font-size: 14px;
+}
+
+.label-with-icon {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  color: #1e293b !important;
+}
+
+.label-with-icon svg {
+  color: #2563eb;
 }
 
 .form-group input[type="text"],
@@ -296,7 +326,7 @@ header p {
   padding: 16px;
   background: linear-gradient(135deg, #f8fbff, #eef4ff);
   border-radius: 12px;
-  border-left: 3px solid var(--primary-500);
+  border: 1px solid rgba(59, 130, 246, 0.18);
 }
 
 .model-select label {
@@ -353,6 +383,16 @@ header p {
   font-weight: 550;
   cursor: pointer;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.model-actions button svg,
+.refresh-models svg {
+  width: 14px;
+  height: 14px;
 }
 
 .model-actions button:hover,
@@ -401,9 +441,10 @@ header p {
 
 /* 自定义服务样式 */
 .service-divider {
-  border-top: 1px dashed var(--border);
-  padding-top: 20px;
-  margin-top: 24px;
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
 .custom-service-card {
@@ -450,11 +491,20 @@ header p {
   background: #fff;
   border: 1px solid #fecaca;
   color: #ef4444;
-  padding: 8px 12px;
+  width: 36px;
+  height: 36px;
+  padding: 8px;
   border-radius: 8px;
   cursor: pointer;
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   transition: all 0.2s;
+}
+
+.btn-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .btn-icon:hover {
@@ -593,6 +643,15 @@ footer {
   font-weight: 550;
   cursor: pointer;
   transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.btn-secondary svg {
+  width: 16px;
+  height: 16px;
 }
 
 .btn-secondary:hover {
