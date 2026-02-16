@@ -10,15 +10,98 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 定义全局状态
   let customServices = [];
   
+  const ADD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+
+  function validateCustomServiceRequired(service) {
+    const name = (service?.name || '').trim();
+    const apiBaseUrl = (service?.apiBaseUrl || '').trim();
+    const apiKey = (service?.apiKey || '').trim();
+    const selectedModel = (service?.selectedModel || '').trim();
+
+    if (!name || !apiBaseUrl || !apiKey || !selectedModel) {
+      return false;
+    }
+
+    try {
+      const u = new URL(apiBaseUrl);
+      if (!/^https?:$/.test(u.protocol)) return false;
+    } catch (e) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function syncCustomServicesFromDOM() {
+    const cards = document.querySelectorAll('#customServicesContainer .custom-service-card');
+    cards.forEach((card) => {
+      const serviceId = card.dataset.serviceId;
+      const service = customServices.find(s => s.id === serviceId);
+      if (!service) return;
+
+      const nameInput = card.querySelector('.custom-service-name');
+      const baseUrlInput = card.querySelector('.custom-service-baseurl');
+      const apiKeyInput = card.querySelector('.custom-service-apikey');
+      const modeSelect = card.querySelector('.custom-service-mode');
+      const modelSelect = card.querySelector('.custom-service-model');
+      const modelInput = card.querySelector('.custom-service-model-custom');
+
+      service.name = (nameInput?.value || '').trim();
+      service.apiBaseUrl = (baseUrlInput?.value || '').trim();
+      service.apiKey = (apiKeyInput?.value || '').trim();
+      service.mode = modeSelect?.value || 'openai';
+      service.selectedModel = (modelInput && modelInput.style.display !== 'none')
+        ? (modelInput.value || '').trim()
+        : ((modelSelect?.value || '').trim());
+    });
+  }
+
+  function isBlankCustomService(service) {
+    const name = (service?.name || '').trim();
+    const apiBaseUrl = (service?.apiBaseUrl || '').trim();
+    const apiKey = (service?.apiKey || '').trim();
+    const selectedModel = (service?.selectedModel || '').trim();
+
+    // “自定义服务”是默认占位名，不应视为已填写
+    const nameIsPlaceholder = !name || name === '自定义服务';
+
+    return nameIsPlaceholder && !apiBaseUrl && !apiKey && !selectedModel;
+  }
+
+  function normalizeCustomServiceDrafts() {
+    let incompleteKept = false;
+    customServices = customServices.filter((service) => {
+      // 完整配置永远保留
+      if (validateCustomServiceRequired(service)) return true;
+
+      // 不完整（含空白）配置最多保留一个，避免出现多个待填卡片
+      if (!incompleteKept) {
+        incompleteKept = true;
+        return true;
+      }
+      return false;
+    });
+  }
+
   // 提前绑定添加按钮事件
   const addBtn = document.getElementById('addCustomServiceBtn');
   if (addBtn) {
     addBtn.disabled = true; // 加载期间禁用
-    addBtn.textContent = '加载配置中...';
+    addBtn.innerHTML = '<span>加载配置中...</span>';
     
     addBtn.addEventListener('click', () => {
       console.log('Adding custom service...');
       try {
+        // 先同步当前可见输入，避免“未失焦导致未写回”的漏检
+        syncCustomServicesFromDOM();
+        normalizeCustomServiceDrafts();
+
+        const incomplete = customServices.find(s => !validateCustomServiceRequired(s));
+        if (incomplete) {
+          showStatus('未正确填写参数：请先完整填写当前自定义服务（名称、API Base URL、API Key、模型）', 'error');
+          return;
+        }
+
         const newService = {
           id: 'custom_' + generateId(),
           name: '自定义服务',
@@ -27,7 +110,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           mode: 'openai',
           selectedModel: ''
         };
-        customServices.push(newService);
+        customServices.unshift(newService);
         renderCustomServices();
         showStatus('已添加自定义服务，请配置详细信息', 'success');
       } catch (e) {
@@ -55,7 +138,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   } finally {
     if (addBtn) {
       addBtn.disabled = false;
-      addBtn.textContent = '➕ 添加自定义服务';
+      addBtn.innerHTML = `${ADD_ICON}<span>添加自定义服务</span>`;
     }
   }
   
@@ -83,8 +166,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       custom: [
         document.getElementById('custom-service-divider'),
         document.getElementById('customServicesContainer'),
-        document.getElementById('addCustomServiceBtn')?.closest('.form-group'),
-        document.getElementById('customServiceTemplate')
+        document.getElementById('addCustomServiceBtn')?.closest('.form-group')
       ]
     };
     return groups;
@@ -258,7 +340,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (activeServiceEl) {
     activeServiceEl.value = currentService;
     activeServiceEl.addEventListener('change', () => {
-      updateServiceVisibility(activeServiceEl.value);
+      const selected = activeServiceEl.value;
+      updateServiceVisibility(selected);
+
+      if (selected === 'custom') {
+        syncCustomServicesFromDOM();
+        normalizeCustomServiceDrafts();
+
+        // 选择“自定义服务”后，确保至少有一个可填写卡片
+        if (customServices.length === 0) {
+          customServices.unshift({
+            id: 'custom_' + generateId(),
+            name: '',
+            apiBaseUrl: '',
+            apiKey: '',
+            mode: 'openai',
+            selectedModel: ''
+          });
+        }
+        renderCustomServices();
+      }
     });
   }
   updateServiceVisibility(currentService);
@@ -318,6 +419,17 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   
   // 初始化自定义服务列表
+  normalizeCustomServiceDrafts();
+  if ((currentService === 'custom') && customServices.length === 0) {
+    customServices.unshift({
+      id: 'custom_' + generateId(),
+      name: '',
+      apiBaseUrl: '',
+      apiKey: '',
+      mode: 'openai',
+      selectedModel: ''
+    });
+  }
   renderCustomServices();
 
   // 刷新模型按钮事件
@@ -535,6 +647,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   function renderCustomServices() {
     const container = document.getElementById('customServicesContainer');
     if (!container) return;
+
+    const template = document.getElementById('customServiceTemplate');
+    if (template) template.style.display = 'none';
     
     container.innerHTML = '';
     
