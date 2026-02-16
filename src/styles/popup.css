@@ -23,7 +23,7 @@ body {
 
 /* ========== Header ========== */
 .popup-header {
-  padding: 18px 20px;
+  padding: 14px 18px;
   background: #fff;
   border-bottom: 1px solid rgba(59, 130, 246, 0.08);
 }
@@ -61,14 +61,14 @@ body {
 
 /* ========== Language Section ========== */
 .lang-section {
-  padding: 16px 20px;
+  padding: 12px 18px;
   background: linear-gradient(180deg, #f8fafc, #fff);
 }
 
 .lang-selector {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .lang-box {
@@ -76,7 +76,7 @@ body {
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   position: relative;
   transition: all 0.2s;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
@@ -112,7 +112,7 @@ body {
   display: block;
   font-size: 11px;
   color: #94a3b8;
-  margin-top: 4px;
+  margin-top: 3px;
 }
 
 .lang-arrow {
@@ -127,7 +127,7 @@ body {
 
 /* ========== Service Section ========== */
 .service-section {
-  padding: 0 20px 16px;
+  padding: 0 18px 12px;
   background: linear-gradient(180deg, #fff, #f8fafc);
 }
 
@@ -135,10 +135,10 @@ body {
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
-  padding: 14px 16px;
+  padding: 11px 14px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   transition: all 0.2s;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
@@ -186,59 +186,20 @@ body {
   padding: 8px;
 }
 
-/* ========== Action Section ========== */
-.action-section {
-  padding: 16px 20px;
-}
-
-.translate-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 14px 24px;
-  border: none;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #60a5fa, #3b82f6);
-  color: #fff;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
-}
-
-.translate-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
-}
-
-.translate-btn:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 10px rgba(59, 130, 246, 0.3);
-}
-
-.translate-btn .btn-icon {
-  width: 18px;
-  height: 18px;
-}
-
-/* 已翻译状态 */
-.translate-btn.translated {
-  background: linear-gradient(135deg, #34d399, #10b981);
-  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
-}
-
-.translate-btn.translated:hover {
-  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
-}
-
 /* ========== Options Section ========== */
 .options-section {
-  padding: 0 20px 16px;
+  padding: 4px 18px 12px;
 }
 
+/* Updated label style */
+.options-section .option-label {
+  font-size: 13px;
+  color: #64748b;
+  margin-bottom: 6px;
+  display: block;
+}
+
+/* Legacy styles for compatibility if needed */
 .option-item {
   display: flex;
   align-items: center;
@@ -286,7 +247,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 20px;
+  padding: 10px 18px;
   background: #f8fafc;
   border-top: 1px solid rgba(59, 130, 246, 0.06);
 }
@@ -358,4 +319,75 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
+}
+
+/* ========== Mode Switcher (Modern Radio) ========== */
+.mode-switch-container {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.mode-option {
+  flex: 1;
+  cursor: pointer;
+  position: relative;
+}
+
+.mode-option input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.mode-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  height: 72px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.mode-option:hover .mode-card {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.mode-option input:checked + .mode-card {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.mode-icon {
+  width: 22px;
+  height: 22px;
+  margin-bottom: 6px;
+  color: #64748b;
+  transition: color 0.2s;
+}
+
+.mode-option input:checked + .mode-card .mode-icon {
+  color: #3b82f6;
+}
+
+.mode-text {
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  transition: color 0.2s;
+}
+
+.mode-option input:checked + .mode-card .mode-text {
+  color: #1e40af;
+  font-weight: 600;
 }

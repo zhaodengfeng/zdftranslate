@@ -2,6 +2,18 @@
 
 A simple and efficient bilingual translation Chrome extension. Supports multiple AI translation services, free and ready to use.
 
+## Latest Release
+
+- **Version:** `2.1.16`
+- **Release package:** `zdf-translate-v2.1.16.zip`
+
+### v2.1.16 Changes (Pre-release review fixes)
+
+- Fixed duplicated `insertReplaceMode` implementation in `src/content.js` to avoid maintenance risk and behavior drift.
+- Removed leftover debug logging in `src/options.js` to keep release output clean.
+- Hardened packaging script (`package.py`): now recursively packages all files under `src/` (including `assets/`) to ensure manifest/resource consistency.
+- Updated extension version in `src/manifest.json` to `2.1.16`.
+
 ## Features
 
 - **Bilingual Display** — Side-by-side original and translated text
@@ -17,16 +29,24 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 
 ## Install
 
-1. Download from [Chrome Web Store](https://chrome.google.com/webstore/detail/dnjhjgnofonkmcbgbdlfmhfpfjfidfae) or load unpacked
-2. Go to `chrome://extensions/` → Enable Developer Mode → Load Unpacked
-3. Select the `src/` folder
+### Chrome Web Store
+
+- Download from Chrome Web Store: https://chrome.google.com/webstore/detail/dnjhjgnofonkmcbgbdlfmhfpfjfidfae
+
+### Install from release package
+
+1. Download and unzip `zdf-translate-v2.1.16.zip`
+2. Open `chrome://extensions/`
+3. Enable **Developer mode**
+4. Click **Load unpacked**
+5. Select the extracted folder (the folder containing `manifest.json`)
 
 ## Configuration
 
 Click the extension icon → Settings to configure:
 - Choose a translation provider (LibreTranslate is free by default)
 - Enter your API key for advanced AI models
-- **New**: Configure custom API endpoints in the "International Services" section
+- Configure custom API endpoints in the "International Services" section
 - Customize display styles
 
 ## API Keys

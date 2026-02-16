@@ -66,9 +66,61 @@
   let translationActive = false;
   let translatedElements = new Set();
   let lazyLoadObservers = []; // 保存懒加载 observers 以便清理
+  let lastKnownTabId = 0;
+
+  function getActualTranslationStatus() {
+    const hasTranslationInDOM = document.querySelectorAll('[data-zdf-translated="true"]').length > 0;
+    return translationActive || hasTranslationInDOM;
+  }
+
+  async function getSafeCurrentTabId() {
+    const runtimeTabId = await getCurrentTabId();
+    if (runtimeTabId) {
+      lastKnownTabId = runtimeTabId;
+      return runtimeTabId;
+    }
+    return lastKnownTabId || 0;
+  }
+
+  async function syncTabTranslationStatus(status = getActualTranslationStatus(), tabIdHint = 0) {
+    try {
+      const tabId = tabIdHint || await getSafeCurrentTabId();
+      if (!tabId) return;
+      chrome.runtime.sendMessage({
+        action: 'setTabStatus',
+        tabId,
+        isTranslated: !!status
+      });
+    } catch (e) {
+      // 忽略同步失败，避免影响页面功能
+    }
+  }
+
+  async function notifyTranslationStatusChanged(status = getActualTranslationStatus(), tabIdHint = 0) {
+    try {
+      const tabId = tabIdHint || await getSafeCurrentTabId();
+      if (!tabId) return;
+      chrome.runtime.sendMessage({
+        action: 'translationStatusChanged',
+        tabId,
+        isTranslated: !!status
+      });
+    } catch (e) {
+      // 忽略通知失败，避免影响页面功能
+    }
+  }
+
+  async function syncAndNotifyTranslationStatus(status = getActualTranslationStatus(), tabIdHint = 0) {
+    await syncTabTranslationStatus(status, tabIdHint);
+    await notifyTranslationStatusChanged(status, tabIdHint);
+  }
 
   // 监听配置更新
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (sender?.tab?.id) {
+      lastKnownTabId = sender.tab.id;
+    }
+
     if (request.action === 'toggleTranslation') {
       config.enabled = request.enabled;
       if (config.enabled) {
@@ -92,18 +144,20 @@
       sendResponse({ segments: getSelectionSegments() });
       return true;
     } else if (request.action === 'getTranslationStatus') {
-      // 检查变量状态和实际DOM内容，确保状态准确
-      const hasTranslationInDOM = document.querySelectorAll('[data-zdf-translated="true"]').length > 0;
-      const actualStatus = translationActive || hasTranslationInDOM;
-      sendResponse({ isTranslated: actualStatus });
+      sendResponse({ isTranslated: getActualTranslationStatus() });
     } else if (request.action === 'startTranslation') {
-      startTranslation();
-      translationActive = true;
-      sendResponse({ success: true });
+      (async () => {
+        await startTranslation();
+        await syncAndNotifyTranslationStatus(true, sender?.tab?.id || 0);
+        sendResponse({ success: true, isTranslated: getActualTranslationStatus() });
+      })().catch((error) => {
+        sendResponse({ success: false, error: error?.message || 'startTranslation failed' });
+      });
+      return true;
     } else if (request.action === 'restoreOriginal') {
       restoreOriginal();
-      translationActive = false;
-      sendResponse({ success: true });
+      syncAndNotifyTranslationStatus(false, sender?.tab?.id || 0);
+      sendResponse({ success: true, isTranslated: false });
     } else if (request.action === 'toggleDisplayMode') {
       toggleDisplayMode();
     }
@@ -284,10 +338,10 @@
           const originalText = texts[index];
           const translatedText = translatedParts[index].trim();
           
-          if (config.displayMode === 'bilingual') {
+          if (config.displayMode === 'replace') {
+            insertReplaceMode(el, originalText, translatedText);
+          } else {
             insertBilingual(el, originalText, translatedText);
-          } else if (config.displayMode === 'replace') {
-            el.innerText = translatedText;
           }
         }
       });
@@ -350,15 +404,61 @@
         return;
       }
       
-      if (config.displayMode === 'bilingual') {
+      if (config.displayMode === 'replace') {
+        insertReplaceMode(element, originalText, translatedText);
+      } else {
         insertBilingual(element, originalText, translatedText);
-      } else if (config.displayMode === 'replace') {
-        element.innerText = translatedText;
       }
     } catch (error) {
       console.error('ZDFTranslate: 翻译失败 -', error.message);
       element.dataset.zdfTranslated = '';
     }
+  }
+
+  // 纯译文模式
+  function insertReplaceMode(element, original, translated) {
+    // 保存原始HTML - 确保只保存一次
+    if (!element.dataset.zdfOriginalHtml) {
+      element.dataset.zdfOriginalHtml = element.innerHTML;
+      element.dataset.zdfOriginalText = original;
+    }
+    
+    // 构造优雅的中文排版容器
+    const container = document.createElement('div');
+    container.className = 'zdf-translation-container zdf-mode-replace';
+    
+    // 隐藏原文（不删除，以便恢复或对比）
+    const originalDiv = document.createElement('div');
+    originalDiv.className = 'zdf-original';
+    originalDiv.innerHTML = element.dataset.zdfOriginalHtml;
+    originalDiv.style.display = 'none'; // 关键：隐藏原文
+    
+    // 译文显示优化：字号稍大，行高舒适，仿书页效果
+    const translatedDiv = document.createElement('div');
+    translatedDiv.className = 'zdf-translated';
+    translatedDiv.textContent = translated;
+    
+    // 动态样式：使用系统字体栈，不硬编码颜色以免与暗黑模式冲突
+    translatedDiv.style.cssText = `
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 1.1em;
+      line-height: 1.8;
+      letter-spacing: 0.02em;
+      text-align: justify;
+      margin-bottom: 0.8em;
+      color: inherit;
+    `;
+    // 添加虚线下划线提示（可选，鼠标悬停显示原文）
+    translatedDiv.title = '双击或切换模式可查看原文';
+
+    container.appendChild(originalDiv);
+    container.appendChild(translatedDiv);
+    
+    element.innerHTML = '';
+    element.appendChild(container);
+    
+    // 记录翻译的元素
+    translatedElements.add(element);
   }
 
   // 双语对照模式
@@ -455,7 +555,7 @@
     await reloadConfig();
     
     // 检查是否需要重新翻译（服务或目标语言变化）
-    const currentSettings = `${config.translationService}_${config.targetLang}`;
+    const currentSettings = `${config.translationService}_${config.targetLang}_${config.displayMode}`;
     const lastSettings = document.body.dataset.zdfLastSettings;
     if (lastSettings && lastSettings !== currentSettings) {
       restoreOriginal();
@@ -500,6 +600,8 @@
     if (immediateTasks.length) {
       await Promise.allSettled(immediateTasks);
     }
+
+    await syncAndNotifyTranslationStatus(true);
   }
 
   // 恢复原文
@@ -535,6 +637,8 @@
     // 断开所有懒加载 observers
     lazyLoadObservers.forEach(observer => observer.disconnect());
     lazyLoadObservers = [];
+
+    syncAndNotifyTranslationStatus(false);
   }
 
   // 切换显示模式
@@ -696,7 +800,7 @@
 
       const exportBtn = document.createElement('button');
       exportBtn.className = 'zdf-popup-action';
-      exportBtn.title = '导出双语图片';
+      exportBtn.title = getExportImageLabel();
       exportBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
         <polyline points="7 10 12 15 17 10"/>
@@ -772,6 +876,29 @@
     }
 
     return paragraphs;
+  }
+
+  function isReplaceDisplayMode() {
+    return config.displayMode === 'replace';
+  }
+
+  function getCurrentExportMode() {
+    if (!translationActive) return 'original';
+    return isReplaceDisplayMode() ? 'translation' : 'bilingual';
+  }
+
+  function getExportImageLabel() {
+    const mode = getCurrentExportMode();
+    if (mode === 'translation') return '导出译文图片';
+    if (mode === 'bilingual') return '导出双语图片';
+    return '导出原文图片';
+  }
+
+  function getExportPdfLabel() {
+    const mode = getCurrentExportMode();
+    if (mode === 'translation') return '导出译文PDF';
+    if (mode === 'bilingual') return '导出双语PDF';
+    return '导出原文PDF';
   }
 
   function streamTextToElement(el, text, onDone) {
@@ -877,6 +1004,10 @@
     const pageFontFamily = getPageDisplayFontFamily();
     const fontOriginal = `500 42px ${pageFontFamily}`;
     const fontTranslated = `400 42px ${pageFontFamily}`;
+    
+    // 纯译文模式：字号加大，行高加大
+    const fontClean = `400 48px ${pageFontFamily}`;
+    const lineHeightClean = 82;
 
     const lineHeight = 62;
     const labelH = 34;
@@ -945,22 +1076,37 @@
       return lines;
     };
 
-    const blocks = pairs.map((p) => ({
-      originalLines: wrapLines(p.original, fontOriginal),
-      translatedLines: wrapLines(p.translated, fontTranslated)
-    }));
+    const isCleanMode = isReplaceDisplayMode();
+
+    const blocks = pairs.map((p) => {
+      if (isCleanMode) {
+        return {
+          translatedLines: wrapLines(p.translated, fontClean)
+        };
+      } else {
+        return {
+          originalLines: wrapLines(p.original, fontOriginal),
+          translatedLines: wrapLines(p.translated, fontTranslated)
+        };
+      }
+    });
 
     const blockHeights = blocks.map((b) => {
-      const originalH = labelH + blockPadY + b.originalLines.length * lineHeight + blockPadY;
-      const translatedH = labelH + blockPadY + b.translatedLines.length * lineHeight + blockPadY;
-      return originalH + sectionGap + translatedH + blockGap;
+      if (isCleanMode) {
+        // 纯译文模式：没有label，只有段落间距
+        return b.translatedLines.length * lineHeightClean + blockGap * 1.5;
+      } else {
+        const originalH = labelH + blockPadY + b.originalLines.length * lineHeight + blockPadY;
+        const translatedH = labelH + blockPadY + b.translatedLines.length * lineHeight + blockPadY;
+        return originalH + sectionGap + translatedH + blockGap;
+      }
     });
 
     const contentHeight = blockHeights.reduce((a, b) => a + b, 0);
     const cardHeight = headerHeight + 26 + contentHeight + 24;
 
     const showWatermark = config.style?.showWatermark !== false;
-    const baseHeight = Math.max(980, outerPadding * 2 + cardHeight);
+    const baseHeight = Math.max(980, outerPadding * 2 + (isCleanMode ? contentHeight + 100 : cardHeight)); // 纯模式不需要卡片框
 
     canvas.width = Math.round(baseWidth * scale);
     canvas.height = Math.round(baseHeight * scale);
@@ -969,23 +1115,35 @@
 
     // 页面底色
     const g = ctx.createLinearGradient(0, 0, 0, baseHeight);
-    g.addColorStop(0, '#f3f7ff');
-    g.addColorStop(1, '#eef3fb');
+    
+    if (isCleanMode) {
+      // 纯净模式：米白色护眼底色，像纸张
+      g.addColorStop(0, '#fdfbf7');
+      g.addColorStop(1, '#f9f6f1');
+    } else {
+      g.addColorStop(0, '#f3f7ff');
+      g.addColorStop(1, '#eef3fb');
+    }
+    
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, baseWidth, baseHeight);
 
-    // 主卡片
-    const cardX = outerPadding;
-    const cardY = outerPadding;
-    const cardW = baseWidth - outerPadding * 2;
-    const cardH = baseHeight - outerPadding * 2;
-    ctx.fillStyle = '#ffffff';
-    roundRect(ctx, cardX, cardY, cardW, cardH, 24);
-    ctx.fill();
+    // 主卡片 (仅在双语模式下绘制)
+    if (!isCleanMode) {
+      const cardX = outerPadding;
+      const cardY = outerPadding;
+      const cardW = baseWidth - outerPadding * 2;
+      const cardH = baseHeight - outerPadding * 2;
+      ctx.fillStyle = '#ffffff';
+      roundRect(ctx, cardX, cardY, cardW, cardH, 24);
+      ctx.fill();
+    }
 
-    let y = cardY + 28;
-    const blockX = cardX + cardPaddingX;
-    const blockW = cardW - cardPaddingX * 2;
+    let y = outerPadding + 28;
+    // 纯模式下稍微宽一点
+    const textX = isCleanMode ? outerPadding + 20 : outerPadding + cardPaddingX;
+    const blockX = outerPadding + cardPaddingX;
+    const blockW = baseWidth - outerPadding * 2 - cardPaddingX * 2;
 
     const drawLabel = (text, x, yTop, bg, fg) => {
       ctx.fillStyle = bg;
@@ -997,39 +1155,54 @@
     };
 
     blocks.forEach((b) => {
-      // 原文区块
-      const originalBoxH = labelH + blockPadY + b.originalLines.length * lineHeight + blockPadY;
-      ctx.fillStyle = '#f7faff';
-      roundRect(ctx, blockX, y, blockW, originalBoxH, 14);
-      ctx.fill();
-      drawLabel('原文', blockX + 16, y + 14, '#e6f0ff', '#2052ad');
+      if (isCleanMode) {
+        // 纯译文绘制
+        ctx.fillStyle = '#1f2937'; // 深灰接近黑
+        ctx.font = fontClean;
+        // 首行对齐
+        let ty = y + lineHeightClean * 0.8;
+        b.translatedLines.forEach(line => {
+          ctx.fillText(line, textX, ty);
+          ty += lineHeightClean;
+        });
+        y += b.translatedLines.length * lineHeightClean + blockGap * 1.5;
+        
+      } else {
+        // 双语绘制
+        // 原文区块
+        const originalBoxH = labelH + blockPadY + b.originalLines.length * lineHeight + blockPadY;
+        ctx.fillStyle = '#f7faff';
+        roundRect(ctx, blockX, y, blockW, originalBoxH, 14);
+        ctx.fill();
+        drawLabel('原文', blockX + 16, y + 14, '#e6f0ff', '#2052ad');
 
-      ctx.fillStyle = '#2f3c54';
-      ctx.font = fontOriginal;
-      let ty = y + 14 + labelH + blockPadY + 40;
-      b.originalLines.forEach(line => {
-        ctx.fillText(line, blockX + textInsetX, ty);
-        ty += lineHeight;
-      });
+        ctx.fillStyle = '#2f3c54';
+        ctx.font = fontOriginal;
+        let ty = y + 14 + labelH + blockPadY + 40;
+        b.originalLines.forEach(line => {
+          ctx.fillText(line, blockX + textInsetX, ty);
+          ty += lineHeight;
+        });
 
-      y += originalBoxH + sectionGap;
+        y += originalBoxH + sectionGap;
 
-      // 译文区块
-      const translatedBoxH = labelH + blockPadY + b.translatedLines.length * lineHeight + blockPadY;
-      ctx.fillStyle = '#f5f8ff';
-      roundRect(ctx, blockX, y, blockW, translatedBoxH, 14);
-      ctx.fill();
-      drawLabel('译文', blockX + 16, y + 14, '#dbeafe', '#1d4ed8');
+        // 译文区块
+        const translatedBoxH = labelH + blockPadY + b.translatedLines.length * lineHeight + blockPadY;
+        ctx.fillStyle = '#f5f8ff';
+        roundRect(ctx, blockX, y, blockW, translatedBoxH, 14);
+        ctx.fill();
+        drawLabel('译文', blockX + 16, y + 14, '#dbeafe', '#1d4ed8');
 
-      ctx.fillStyle = '#334155';
-      ctx.font = fontTranslated;
-      ty = y + 14 + labelH + blockPadY + 40;
-      b.translatedLines.forEach(line => {
-        ctx.fillText(line, blockX + textInsetX, ty);
-        ty += lineHeight;
-      });
+        ctx.fillStyle = '#334155';
+        ctx.font = fontTranslated;
+        ty = y + 14 + labelH + blockPadY + 40;
+        b.translatedLines.forEach(line => {
+          ctx.fillText(line, blockX + textInsetX, ty);
+          ty += lineHeight;
+        });
 
-      y += translatedBoxH + blockGap;
+        y += translatedBoxH + blockGap;
+      }
     });
 
     // 与网页截图一致：底部追加统一水印栏（品牌图 + 当前页面URL）
@@ -1045,7 +1218,7 @@
       outputCanvas = totalCanvas;
     }
 
-    const mode = translationActive ? 'bilingual' : 'original';
+    const mode = isCleanMode ? 'translation' : 'bilingual';
     const baseName = buildArticleExportBaseName(document.title, mode);
     await downloadOptimizedCanvas(outputCanvas, baseName);
   }
@@ -1085,7 +1258,7 @@
       .trim()
       .slice(0, 40);
 
-    const modeText = mode === 'bilingual' ? 'BIL' : 'ORI';
+    const modeText = mode === 'bilingual' ? 'BIL' : mode === 'translation' ? 'TRAN' : 'ORI';
     const rand = Math.floor(1000 + Math.random() * 9000);
     return `${cleanTitle || 'article'}-${modeText}-${rand}`;
   }
@@ -1299,6 +1472,11 @@
 
     if (!translatedDiv || !footer) return;
 
+    const popupActions = footer.querySelectorAll('.zdf-popup-action');
+    if (popupActions && popupActions[1]) {
+      popupActions[1].title = getExportImageLabel();
+    }
+
     if (error) {
       if (popupStreamTimer) {
         clearInterval(popupStreamTimer);
@@ -1506,12 +1684,8 @@
       btn.classList.remove('zdf-float-loading');
       updateFloatingButtonState();
       
-      // 通知 background 更新状态
-      chrome.runtime.sendMessage({
-        action: 'setTabStatus',
-        tabId: await getCurrentTabId(),
-        isTranslated: false
-      });
+      // 通知 background + popup 实时更新状态
+      await syncAndNotifyTranslationStatus(false);
     } else {
       // 未翻译状态 -> 开始翻译
       isTranslating = true;
@@ -1525,12 +1699,8 @@
       btn.classList.remove('zdf-float-loading');
       updateFloatingButtonState();
       
-      // 通知 background 更新状态
-      chrome.runtime.sendMessage({
-        action: 'setTabStatus',
-        tabId: await getCurrentTabId(),
-        isTranslated: true
-      });
+      // 通知 background + popup 实时更新状态
+      await syncAndNotifyTranslationStatus(true);
     }
   }
   
@@ -1558,7 +1728,11 @@
   async function getCurrentTabId() {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage({ action: 'getCurrentTabId' }, (response) => {
-        resolve(response?.tabId || 0);
+        if (chrome.runtime.lastError) {
+          resolve(lastKnownTabId || 0);
+          return;
+        }
+        resolve(response?.tabId || lastKnownTabId || 0);
       });
     });
   }
@@ -1686,7 +1860,7 @@
     try {
       const totalCanvas = await buildArticleCaptureCanvas();
       const title = document.title;
-      const mode = translationActive ? 'bilingual' : 'original';
+      const mode = getCurrentExportMode();
       const baseName = buildArticleExportBaseName(title, mode);
       await downloadOptimizedCanvas(totalCanvas, baseName);
     } catch (error) {
@@ -1729,7 +1903,7 @@
 
     try {
       const totalCanvas = await buildArticleCaptureCanvas();
-      const mode = translationActive ? 'bilingual' : 'original';
+      const mode = getCurrentExportMode();
       const title = document.title;
       const baseName = buildArticleExportBaseName(title, mode);
 
@@ -2640,16 +2814,17 @@
   function updateCaptureButtonState() {
     const btn = document.getElementById('zdf-capture-btn');
     if (!btn || btn.classList.contains('zdf-capture-loading')) return;
-    const tip = translationActive ? '截图双语' : '截图原文';
-    btn.title = translationActive ? '截图双语文章' : '截图原文文章';
+    const mode = getCurrentExportMode();
+    const tip = mode === 'translation' ? '截图译文' : mode === 'bilingual' ? '截图双语' : '截图原文';
+    btn.title = mode === 'translation' ? '截图译文文章' : mode === 'bilingual' ? '截图双语文章' : '截图原文文章';
     btn.setAttribute('data-tip', tip);
   }
 
   function updatePdfButtonState() {
     const btn = document.getElementById('zdf-pdf-btn');
     if (!btn || btn.classList.contains('zdf-capture-loading')) return;
-    const tip = translationActive ? '导出双语PDF' : '导出原文PDF';
-    btn.title = translationActive ? '导出双语PDF' : '导出原文PDF';
+    const tip = getExportPdfLabel();
+    btn.title = getExportPdfLabel();
     btn.setAttribute('data-tip', tip);
   }
 

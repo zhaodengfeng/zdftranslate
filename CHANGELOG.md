@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.1.16 (2026-02-16)
+
+- Pre-release code review and cleanup for store submission.
+- Fixed duplicated `insertReplaceMode` definition in `src/content.js` to keep behavior deterministic.
+- Removed debug console output in `src/options.js`.
+- Packaging consistency fix: `package.py` now packs all files in `src/` recursively (including `assets/`) to avoid missing web-accessible resources.
+- Release artifact naming standardized to `zdf-translate-vX.Y.Z.zip`.
+
 ## v2.1.0 (2026-02-16)
 
 - Release-candidate cleanup for Chrome Web Store submission.

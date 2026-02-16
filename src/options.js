@@ -90,7 +90,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     addBtn.innerHTML = '<span>加载配置中...</span>';
     
     addBtn.addEventListener('click', () => {
-      console.log('Adding custom service...');
       try {
         // 先同步当前可见输入，避免“未失焦导致未写回”的漏检
         syncCustomServicesFromDOM();

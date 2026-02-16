@@ -5,10 +5,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 获取DOM元素
   const sourceLang = document.getElementById('sourceLang');
   const targetLang = document.getElementById('targetLang');
-  const displayMode = document.getElementById('displayMode');
   const translationService = document.getElementById('translationService');
-  const translateBtn = document.getElementById('translateBtn');
-  const btnText = document.getElementById('btnText');
   const statusToast = document.getElementById('statusToast');
   const openOptions = document.getElementById('openOptions');
   const popupVersion = document.getElementById('popupVersion');
@@ -36,38 +33,60 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 加载配置和状态
   const config = await loadConfig();
   
-  // 动态加载自定义服务选项
-  const customServicesOptgroup = document.getElementById('customServicesOptgroup');
-  if (customServicesOptgroup && config.customServices?.length > 0) {
-    customServicesOptgroup.innerHTML = '';
+  // 动态加载自定义服务选项（直接追加到下拉列表末尾）
+  if (config.customServices?.length > 0) {
     config.customServices.forEach(service => {
       const option = document.createElement('option');
       option.value = service.id;
       option.textContent = service.name || '未命名服务';
-      customServicesOptgroup.appendChild(option);
+      translationService.appendChild(option);
     });
-  } else if (customServicesOptgroup) {
-    // 如果没有自定义服务，隐藏该选项组
-    customServicesOptgroup.style.display = 'none';
   }
   
-  // 获取当前标签页
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  currentTabId = tab.id;
+  // 获取当前标签页并刷新状态（优先读 content script，失败再回退 background）
+  await refreshTranslationStatus();
+
+  // content script 主动推送状态变更（实时同步）
+  chrome.runtime.onMessage.addListener((message) => {
+    if (!message || message.action !== 'translationStatusChanged') return;
+    if (!currentTabId || message.tabId !== currentTabId) return;
+
+    isTranslated = !!message.isTranslated;
+  });
+
+  // 短轮询兜底：避免极端情况下消息丢失导致状态不同步
+  const statusPollingTimer = setInterval(() => {
+    refreshTranslationStatus().catch(() => {});
+  }, 1200);
+
+  window.addEventListener('unload', () => {
+    clearInterval(statusPollingTimer);
+  });
   
-  // 优先检查 content script 的实际状态（基于页面DOM）
-  try {
-    isTranslated = await checkTranslationStatus(currentTabId);
-    await setTabStatusInBackground(currentTabId, isTranslated);
-  } catch (e) {
-    isTranslated = await getTabStatusFromBackground(currentTabId);
-  }
-  updateButtonState();
-  
-  // 初始化UI（带兜底，避免配置值与当前选项不一致导致空白）
+  // 初始化UI
   sourceLang.value = sourceLang.querySelector(`option[value="${config.sourceLang}"]`) ? config.sourceLang : 'auto';
   targetLang.value = targetLang.querySelector(`option[value="${config.targetLang}"]`) ? config.targetLang : 'zh-CN';
-  displayMode.value = displayMode.querySelector(`option[value="${config.displayMode}"]`) ? config.displayMode : 'bilingual';
+  
+  // 初始化显示模式 Radio Group
+  const normalizeDisplayMode = (mode) => {
+    if (mode === 'replace' || mode === 'bilingual') return mode;
+    // 兼容历史值
+    if (mode === 'translationOnly' || mode === 'translated-only' || mode === 'single') return 'replace';
+    return 'bilingual';
+  };
+
+  const currentMode = normalizeDisplayMode(config.displayMode);
+  const targetRadio = document.querySelector(`input[name="displayMode"][value="${currentMode}"]`);
+  if (targetRadio) {
+    targetRadio.checked = true;
+  } else {
+    const fallbackRadio = document.querySelector('input[name="displayMode"][value="bilingual"]');
+    if (fallbackRadio) fallbackRadio.checked = true;
+  }
+
+  if (currentMode !== (config.displayMode || 'bilingual')) {
+    await updateConfig({ displayMode: currentMode });
+  }
 
   const serviceValue = config.translationService || 'libretranslate';
   if (translationService.querySelector(`option[value="${serviceValue}"]`)) {
@@ -88,9 +107,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     showToast('目标语言已更新');
   });
 
-  displayMode.addEventListener('change', async () => {
-    await updateConfig({ displayMode: displayMode.value });
-    showToast('显示模式已更新');
+  // 显示模式切换逻辑
+  document.querySelectorAll('input[name="displayMode"]').forEach(radio => {
+    radio.addEventListener('change', async (e) => {
+      if (e.target.checked) {
+        const newValue = e.target.value;
+        await updateConfig({ displayMode: newValue });
+        showToast(newValue === 'bilingual' ? '已切换至双语对照' : '已切换至纯译文模式');
+      }
+    });
   });
 
   translationService.addEventListener('change', async () => {
@@ -98,77 +123,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     showToast('翻译服务已切换');
   });
 
-  // 主按钮点击 - 翻译/恢复切换
-  translateBtn.addEventListener('click', async () => {
-    try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab || !tab.id) {
-        showToast('无法获取当前标签页');
-        return;
-      }
-      
-      currentTabId = tab.id;
-      translateBtn.disabled = true;
-      
-      if (!isTranslated) {
-        showToast('正在翻译...');
-        
-        try {
-          await chrome.tabs.sendMessage(tab.id, { action: 'startTranslation' });
-          isTranslated = true;
-          await setTabStatusInBackground(tab.id, true);
-          updateButtonState();
-          showToast('翻译完成');
-        } catch (error) {
-          // 如果 content script 未加载，尝试注入
-          try {
-            await chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              files: ['lib/dom-parser.js', 'lib/translator.js', 'content.js']
-            });
-            
-            await new Promise(resolve => setTimeout(resolve, 500));
-            await chrome.tabs.sendMessage(tab.id, { action: 'startTranslation' });
-            isTranslated = true;
-            await setTabStatusInBackground(tab.id, true);
-            updateButtonState();
-            showToast('翻译完成');
-          } catch (injectError) {
-            showToast('无法访问此页面');
-            console.error('注入失败:', injectError);
-          }
-        }
-      } else {
-        // 恢复原文
-        try {
-          await chrome.tabs.sendMessage(tab.id, { action: 'restoreOriginal' });
-          isTranslated = false;
-          await setTabStatusInBackground(tab.id, false);
-          updateButtonState();
-          showToast('已恢复原文');
-        } catch (error) {
-          showToast('恢复失败');
-          console.error('恢复失败:', error);
-        }
-      }
-    } catch (error) {
-      showToast('操作失败');
-      console.error('操作失败:', error);
-    } finally {
-      translateBtn.disabled = false;
+  // 说明：翻译/恢复由页面右下角悬浮按钮控制，popup 不再直接触发。
+
+  async function refreshTranslationStatus() {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab || !tab.id) {
+      return;
+    }
+
+    currentTabId = tab.id;
+
+    const contentStatus = await checkTranslationStatus(currentTabId);
+    if (typeof contentStatus === 'boolean') {
+      isTranslated = contentStatus;
+      await setTabStatusInBackground(currentTabId, isTranslated);
+    } else {
+      isTranslated = await getTabStatusFromBackground(currentTabId);
+    }
+
+  }
+
+
+  // 轻量级状态自愈：弹窗重新可见/聚焦时刷新
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible') {
+      await refreshTranslationStatus();
     }
   });
 
-  // 更新按钮状态
-  function updateButtonState() {
-    if (isTranslated) {
-      btnText.textContent = '恢复原文';
-      translateBtn.classList.add('translated');
-    } else {
-      btnText.textContent = '翻译';
-      translateBtn.classList.remove('translated');
-    }
-  }
+  window.addEventListener('focus', async () => {
+    await refreshTranslationStatus();
+  });
 
   // 从 background 获取标签页状态
   async function getTabStatusFromBackground(tabId) {
@@ -192,9 +177,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function checkTranslationStatus(tabId) {
     try {
       const response = await chrome.tabs.sendMessage(tabId, { action: 'getTranslationStatus' });
-      return response && response.isTranslated;
+      if (typeof response?.isTranslated === 'boolean') {
+        return response.isTranslated;
+      }
+      return null;
     } catch (error) {
-      return false;
+      return null;
     }
   }
 
@@ -241,6 +229,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 显示 Toast 提示
   function showToast(text) {
+    if (!statusToast) return;
     statusToast.textContent = text;
     statusToast.classList.add('show');
     setTimeout(() => {

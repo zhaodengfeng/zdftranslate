@@ -62,46 +62,43 @@
       <div class="service-card">
         <span class="service-label">翻译服务：</span>
         <select id="translationService">
-          <optgroup label="免费服务">
-            <option value="libretranslate">LibreTranslate（免费）</option>
-          </optgroup>
-          <optgroup label="国内 AI">
-            <option value="aliyun">阿里云百炼</option>
-            <option value="kimi">Kimi (月之暗面)</option>
-            <option value="zhipu">智谱清言</option>
-            <option value="deepseek">DeepSeek</option>
-          </optgroup>
-          <optgroup label="国际服务">
-            <option value="google">Google 翻译</option>
-            <option value="deepl">DeepL</option>
-            <option value="openai">OpenAI</option>
-            <option value="openrouter">OpenRouter</option>
-          </optgroup>
-          <optgroup label="自定义服务" id="customServicesOptgroup">
-            <!-- 动态加载自定义服务 -->
-          </optgroup>
+          <option value="libretranslate">LibreTranslate（免费）</option>
+          <option value="aliyun">阿里云百炼</option>
+          <option value="kimi">Kimi (月之暗面)</option>
+          <option value="zhipu">智谱清言</option>
+          <option value="deepseek">DeepSeek</option>
+          <option value="google">Google 翻译</option>
+          <option value="deepl">DeepL</option>
+          <option value="openai">OpenAI</option>
+          <option value="openrouter">OpenRouter</option>
+          <!-- 自定义服务动态追加到末尾 -->
         </select>
       </div>
     </section>
 
-    <!-- 翻译按钮 -->
-    <section class="action-section">
-      <button id="translateBtn" class="translate-btn">
-        <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/>
-        </svg>
-        <span id="btnText">翻译</span>
-      </button>
-    </section>
-
     <!-- 选项 -->
     <section class="options-section">
-      <div class="option-item">
-        <span class="option-label">显示模式</span>
-        <select id="displayMode" class="option-select">
-          <option value="bilingual">双语对照</option>
-          <option value="replace">仅译文</option>
-        </select>
+      <div class="option-label">显示模式</div>
+      <div class="mode-switch-container">
+        <label class="mode-option">
+          <input type="radio" name="displayMode" value="bilingual" checked>
+          <div class="mode-card">
+            <svg class="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 6h16M4 10h16M4 14h16M4 18h10" stroke="#94a3b8" />
+              <path d="M4 14h16M4 18h10" stroke="#3b82f6" />
+            </svg>
+            <span class="mode-text">双语对照</span>
+          </div>
+        </label>
+        <label class="mode-option">
+          <input type="radio" name="displayMode" value="replace">
+          <div class="mode-card">
+            <svg class="mode-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 6h16M4 10h16M4 14h16M4 18h10" stroke="#3b82f6" />
+            </svg>
+            <span class="mode-text">仅译文</span>
+          </div>
+        </label>
       </div>
     </section>
 
