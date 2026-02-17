@@ -2,6 +2,9 @@
 
 A simple and efficient bilingual translation Chrome extension. Supports multiple AI translation services, free and ready to use.
 
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/dnjhjgnofonkmcbgbdlfmhfpfjfidfae?color=4285F4&label=Chrome%20Web%20Store&logo=google-chrome&logoColor=white)](https://chrome.google.com/webstore/detail/dnjhjgnofonkmcbgbdlfmhfpfjfidfae)
+[![License](https://img.shields.io/github/license/zhaodengfeng/zdftranslate?color=blue)](LICENSE)
+
 ## Latest Release
 
 - **Version:** `2.1.18`
@@ -23,7 +26,7 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 
 ### Chrome Web Store
 
-- Download from Chrome Web Store: https://chrome.google.com/webstore/detail/dnjhjgnofonkmcbgbdlfmhfpfjfidfae
+[<img src="https://img.shields.io/badge/Install%20from-Chrome%20Web%20Store-4285F4?logo=google-chrome&logoColor=white&style=for-the-badge" height="40">](https://chrome.google.com/webstore/detail/dnjhjgnofonkmcbgbdlfmhfpfjfidfae)
 
 ### Install from release package
 
