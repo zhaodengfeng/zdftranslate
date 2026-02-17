@@ -28,6 +28,11 @@ When you use the translation feature, page content is sent to the translation pr
 | Kimi (Moonshot AI) | https://platform.moonshot.cn/docs/privacy |
 | Zhipu AI (GLM) | https://open.bigmodel.cn/dev/howuse/privacypolicy |
 | DeepSeek | https://www.deepseek.com/privacy |
+| Alibaba Cloud (Qwen) | https://www.aliyun.com/legal/privacypolicy |
+| LibreTranslate | https://libretranslate.com/privacy |
+| OpenRouter | https://openrouter.ai/privacy |
+
+**Custom Services**: When you add custom translation services, your data is sent directly to the API endpoints you configure. We do not control how these services handle your data.
 
 ## Permissions
 
