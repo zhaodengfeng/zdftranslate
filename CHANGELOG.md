@@ -1,5 +1,13 @@
 # Changelog
 
+## v2.1.18 (2026-02-17)
+
+- Version bump to 2.1.18.
+
+## v2.1.17 (2026-02-17)
+
+- Version bump to 2.1.17.
+
 ## v2.1.16 (2026-02-16)
 
 - Pre-release code review and cleanup for store submission.

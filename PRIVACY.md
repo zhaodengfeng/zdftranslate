@@ -1,6 +1,6 @@
 # Privacy Policy — ZDFTranslate
 
-**Last updated:** February 11, 2026
+**Last updated:** February 17, 2026
 
 ## Data Collection
 
