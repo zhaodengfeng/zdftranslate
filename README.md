@@ -4,15 +4,7 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 
 ## Latest Release
 
-- **Version:** `2.1.16`
-- **Release package:** `zdf-translate-v2.1.16.zip`
-
-### v2.1.16 Changes (Pre-release review fixes)
-
-- Fixed duplicated `insertReplaceMode` implementation in `src/content.js` to avoid maintenance risk and behavior drift.
-- Removed leftover debug logging in `src/options.js` to keep release output clean.
-- Hardened packaging script (`package.py`): now recursively packages all files under `src/` (including `assets/`) to ensure manifest/resource consistency.
-- Updated extension version in `src/manifest.json` to `2.1.16`.
+- **Version:** `2.1.18`
 
 ## Features
 
