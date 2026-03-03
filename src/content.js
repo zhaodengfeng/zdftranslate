@@ -1,5 +1,6 @@
 // ZDFTranslate - Content Script
 // 核心功能：识别页面主要内容并注入翻译
+// v2.2.0 - 新增 Readability 集成、预翻译范围控制、上下文传递
 
 (function() {
   'use strict';
@@ -17,18 +18,19 @@
     sourceLang: 'auto',
     displayMode: 'bilingual', // bilingual | replace | hover
     translationService: 'libretranslate',
-    apiKeys: {
-      google: '',
-      deepl: '',
-      openai: '',
-      kimi: '',
-      zhipu: '',
-      aliyun: '',
-      deepseek: ''
-    },
+    apiKeys: {},
     excludedSites: [],
     showFloatingImageExportButton: true,
     showFloatingPdfExportButton: true,
+    // v2.2.0 新增：预翻译范围配置
+    preloadConfig: {
+      margin: 200,      // 视口下方多少像素开始预翻译
+      threshold: 0.1    // 元素可见度阈值（0-1）
+    },
+    // v2.2.0 新增：是否使用 Readability
+    useReadability: true,
+    // v2.2.0 新增：是否传递翻译上下文
+    useTranslationContext: true,
     style: {
       translationColor: '#111111',
       translationSize: '0.95em',
@@ -38,6 +40,9 @@
   };
 
   let configReady = false;
+  
+  // v2.2.0 新增：文章信息缓存
+  let articleInfo = null;
 
   // 从存储加载配置
   chrome.storage.sync.get(['zdfConfig'], (result) => {
@@ -45,6 +50,12 @@
       config = { ...config, ...result.zdfConfig };
     }
     configReady = true;
+    
+    // v2.2.0 新增：预提取文章信息
+    if (config.useReadability || config.useTranslationContext) {
+      extractArticleInfo();
+    }
+    
     setTimeout(() => {
       updateFloatingButtonState();
     }, 0);
@@ -115,6 +126,125 @@
     await notifyTranslationStatusChanged(status, tabIdHint);
   }
 
+  // ============ v2.2.0 新增：Readability 和上下文功能 ============
+
+  /**
+   * 使用 Readability 提取文章信息
+   * @returns {Object|null} - 文章信息（标题、正文等）
+   */
+  function extractArticleInfo() {
+    if (!window.Readability) {
+      console.warn('[ZDFTranslate] Readability not loaded');
+      return null;
+    }
+
+    try {
+      // 克隆文档以避免修改原页面
+      const documentClone = document.cloneNode(true);
+      const reader = new window.Readability(documentClone);
+      const article = reader.parse();
+
+      if (article && article.textContent.length > 200) {
+        articleInfo = {
+          title: article.title,
+          content: article.textContent.substring(0, 1000), // 前1000字符作为上下文
+          excerpt: article.excerpt,
+          byline: article.byline,
+          siteName: article.siteName,
+          length: article.length
+        };
+        console.log('[ZDFTranslate] Article info extracted:', articleInfo.title);
+        return articleInfo;
+      }
+    } catch (e) {
+      console.error('[ZDFTranslate] Failed to extract article info:', e);
+    }
+
+    // 降级：提取页面标题和第一段
+    const firstParagraph = document.querySelector('p');
+    articleInfo = {
+      title: document.title,
+      content: firstParagraph ? firstParagraph.textContent.substring(0, 500) : '',
+      excerpt: firstParagraph ? firstParagraph.textContent.substring(0, 200) : '',
+      siteName: window.location.hostname
+    };
+
+    return articleInfo;
+  }
+
+  /**
+   * 获取翻译上下文（用于 AI 翻译）
+   * @returns {string} - 上下文提示语
+   */
+  function getTranslationContext() {
+    if (!config.useTranslationContext || !articleInfo) {
+      return '';
+    }
+
+    let context = '';
+    
+    if (articleInfo.title) {
+      context += `文章标题："${articleInfo.title}"\n`;
+    }
+    
+    if (articleInfo.siteName) {
+      context += `来源网站：${articleInfo.siteName}\n`;
+    }
+
+    if (articleInfo.byline) {
+      context += `作者：${articleInfo.byline}\n`;
+    }
+
+    context += '\n翻译时请保持专业术语与上下文一致。\n';
+
+    return context;
+  }
+
+  /**
+   * 使用 Readability 查找内容块
+   * @returns {Element|null}
+   */
+  function findContentBlocksWithReadability() {
+    if (!window.Readability || !config.useReadability) {
+      return null;
+    }
+
+    try {
+      const reader = new Readability(document.cloneNode(true));
+      const article = reader.parse();
+
+      if (article) {
+        // 在原页面中找到对应的内容元素
+        // 通过文本匹配找到最接近的元素
+        const contentText = article.textContent.substring(0, 200);
+        const walker = document.createTreeWalker(
+          document.body,
+          NodeFilter.SHOW_TEXT,
+          null,
+          false
+        );
+
+        let node;
+        while (node = walker.nextNode()) {
+          if (node.textContent.includes(contentText.substring(0, 50))) {
+            // 找到包含匹配文本的父元素
+            let parent = node.parentElement;
+            while (parent && parent.tagName !== 'BODY') {
+              if (parent.textContent.length > article.length * 0.5) {
+                return [parent];
+              }
+              parent = parent.parentElement;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[ZDFTranslate] Readability find content failed:', e);
+    }
+
+    return null;
+  }
+
   // 监听配置更新
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (sender?.tab?.id) {
@@ -130,6 +260,12 @@
       }
     } else if (request.action === 'updateConfig') {
       config = { ...config, ...request.config };
+      
+      // v2.2.0：配置更新时重新提取文章信息
+      if (config.useReadability || config.useTranslationContext) {
+        extractArticleInfo();
+      }
+      
       if (config.enabled) {
         removeTranslations();
         setTimeout(init, 100);
@@ -147,6 +283,10 @@
       sendResponse({ isTranslated: getActualTranslationStatus() });
     } else if (request.action === 'startTranslation') {
       (async () => {
+        // v2.2.0：开始翻译前提取文章信息
+        if (config.useReadability || config.useTranslationContext) {
+          extractArticleInfo();
+        }
         await startTranslation();
         await syncAndNotifyTranslationStatus(true, sender?.tab?.id || 0);
         sendResponse({ success: true, isTranslated: getActualTranslationStatus() });
@@ -160,12 +300,23 @@
       sendResponse({ success: true, isTranslated: false });
     } else if (request.action === 'toggleDisplayMode') {
       toggleDisplayMode();
+    } else if (request.action === 'getArticleInfo') {
+      // v2.2.0：新增获取文章信息接口
+      if (!articleInfo) {
+        extractArticleInfo();
+      }
+      sendResponse({ articleInfo, context: getTranslationContext() });
+      return true;
     }
     return true;
   });
 
   function init() {
     if (isExcludedSite()) return;
+    
+    // v2.2.0：使用预翻译范围配置
+    const preloadMargin = config.preloadConfig?.margin ?? 200;
+    const visibilityThreshold = config.preloadConfig?.threshold ?? 0.1;
     
     // 使用 Intersection Observer 实现懒加载翻译
     const observer = new IntersectionObserver((entries) => {
@@ -175,7 +326,10 @@
           observer.unobserve(entry.target);
         }
       });
-    }, { rootMargin: '100px' });
+    }, { 
+      rootMargin: `${preloadMargin}px`,
+      threshold: visibilityThreshold
+    });
 
     // 查找主要内容区域
     const contentBlocks = findContentBlocks();
@@ -184,18 +338,21 @@
 
   // 智能识别页面主要内容块
   function findContentBlocks() {
-    const candidates = [];
-    const selectors = [
-      'article',
-      '[role="main"]',
-      '.content',
-      '.post-content',
-      '.entry-content',
-      'main',
-      '.article-body'
-    ];
+    // v2.2.0：优先使用 Readability
+    if (config.useReadability) {
+      const readabilityBlocks = findContentBlocksWithReadability();
+      if (readabilityBlocks && readabilityBlocks.length > 0) {
+        console.log('[ZDFTranslate] Using Readability content detection');
+        return readabilityBlocks;
+      }
+    }
 
-    // 先尝试常见的内容选择器
+    // 降级到原有启发式算法
+    return findContentBlocksHeuristic();
+  }
+
+  // 原有的启发式算法
+  function findContentBlocksHeuristic() {
     for (const selector of selectors) {
       const elements = document.querySelectorAll(selector);
       elements.forEach(el => {

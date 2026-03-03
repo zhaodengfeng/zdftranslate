@@ -36,6 +36,7 @@
         "lib/jspdf.umd.min.js",
         "lib/dom-parser.js",
         "lib/translator.js",
+        "lib/readability.js",
         "lib/token-bucket.js",
         "lib/config-manager.js",
         "lib/free-translate.js",

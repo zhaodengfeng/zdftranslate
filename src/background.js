@@ -488,31 +488,44 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 // 处理翻译请求
 async function handleTranslation(request) {
-  const { text, targetLang, sourceLang, service } = request;
+  const { text, targetLang, sourceLang, service, tabId } = request;
   const cacheKey = `${text}_${targetLang}_${sourceLang}_${service}`;
   
   if (TRANSLATION_CACHE.has(cacheKey)) {
     return TRANSLATION_CACHE.get(cacheKey);
   }
 
+  // v2.2.0：获取翻译上下文（仅对 AI 服务）
+  let translationContext = '';
+  if (shouldUseContext(service) && tabId) {
+    try {
+      const response = await chrome.tabs.sendMessage(tabId, { action: 'getArticleInfo' });
+      if (response?.context) {
+        translationContext = response.context;
+      }
+    } catch (e) {
+      console.warn('[ZDFTranslate] Failed to get translation context:', e);
+    }
+  }
+
   let result;
   
   switch (service) {
     case 'kimi':
-      result = await translateWithKimi(text, targetLang, sourceLang);
+      result = await translateWithKimi(text, targetLang, sourceLang, translationContext);
       break;
     case 'aliyun':
     case 'aliyun-mt':
-      result = await translateWithAliyun(text, targetLang, sourceLang);
+      result = await translateWithAliyun(text, targetLang, sourceLang, translationContext);
       break;
     case 'zhipu':
-      result = await translateWithZhipu(text, targetLang, sourceLang);
+      result = await translateWithZhipu(text, targetLang, sourceLang, translationContext);
       break;
     case 'openai':
-      result = await translateWithOpenAI(text, targetLang, sourceLang);
+      result = await translateWithOpenAI(text, targetLang, sourceLang, translationContext);
       break;
     case 'deepseek':
-      result = await translateWithDeepSeek(text, targetLang, sourceLang);
+      result = await translateWithDeepSeek(text, targetLang, sourceLang, translationContext);
       break;
     case 'google':
       result = await translateWithGoogle(text, targetLang, sourceLang);
@@ -581,15 +594,21 @@ async function handleTranslation(request) {
   return result;
 }
 
+// 判断是否应该使用上下文的翻译服务
+function shouldUseContext(service) {
+  const contextServices = ['kimi', 'openai', 'deepseek', 'zhipu', 'aliyun', 'openrouter', 'custom'];
+  return contextServices.includes(service) || service?.startsWith('custom_');
+}
+
 // ============ 各翻译服务实现 ============
 
-async function translateWithKimi(text, targetLang, sourceLang) {
+async function translateWithKimi(text, targetLang, sourceLang, context = '') {
   const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
   const apiKey = zdfConfig?.apiKeys?.kimi;
   const model = zdfConfig?.selectedModels?.kimi || DEFAULT_MODELS.kimi;
-  
+
   ensureApiKey(apiKey, 'Kimi');
-  
+
   const langNames = {
     'zh-CN': '简体中文',
     'zh-TW': '繁體中文',
@@ -598,8 +617,14 @@ async function translateWithKimi(text, targetLang, sourceLang) {
   };
   const targetLangName = langNames[targetLang] || targetLang;
 
+  // v2.2.0：构建系统提示语，包含上下文
+  let systemPrompt = `Translate to ${targetLangName}. Only return the translated text.`;
+  if (context) {
+    systemPrompt = `${context}\n${systemPrompt}`;
+  }
+
   const response = await fetchWithRetry(
-    'https://api.moonshot.cn/v1/chat/completions', 
+    'https://api.moonshot.cn/v1/chat/completions',
     {
       method: 'POST',
       headers: {
@@ -609,132 +634,162 @@ async function translateWithKimi(text, targetLang, sourceLang) {
       body: JSON.stringify({
         model: model,
         messages: [
-          { role: 'system', content: `Translate to ${targetLangName}. Only return the translated text.` },
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: text }
         ],
-        temperature: 0.3, 
+        temperature: 0.3,
         max_tokens: 2000
       })
     },
     'kimi'
   );
-  
+
   const data = await response.json();
   return data.choices[0].message.content.trim();
 }
 
-async function translateWithAliyun(text, targetLang, sourceLang) {
+async function translateWithAliyun(text, targetLang, sourceLang, context = '') {
   const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
   const apiKey = zdfConfig?.apiKeys?.aliyun;
   const model = zdfConfig?.selectedModels?.aliyun || 'qwen-turbo';
   ensureApiKey(apiKey, 'Aliyun');
-  
+
+  // v2.2.0：构建提示语，包含上下文
+  let content = text;
+  if (context) {
+    content = `${context}\n请翻译以下内容到 ${targetLang}：\n${text}`;
+  } else {
+    content = `Translate to ${targetLang}:\n${text}`;
+  }
+
   const response = await fetchWithRetry(
     'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
     {
       method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${apiKey}`, 
-        'Content-Type': 'application/json' 
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         model: model,
-        messages: [{ 
-          role: 'user', 
-          content: `Translate to ${targetLang}:\n${text}` 
+        messages: [{
+          role: 'user',
+          content: content
         }]
       })
     },
     'aliyun'
   );
-  
+
   const data = await response.json();
   return data.choices?.[0]?.message?.content?.trim() || 'Translation failed';
 }
 
-async function translateWithZhipu(text, targetLang, sourceLang) {
+async function translateWithZhipu(text, targetLang, sourceLang, context = '') {
   const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
   const apiKey = zdfConfig?.apiKeys?.zhipu;
   const model = zdfConfig?.selectedModels?.zhipu || 'glm-4-flash';
   ensureApiKey(apiKey, 'Zhipu');
 
+  // v2.2.0：构建提示语，包含上下文
+  let content = text;
+  if (context) {
+    content = `${context}\n请翻译以下内容到 ${targetLang}，只输出翻译结果：\n${text}`;
+  } else {
+    content = `Translate this to ${targetLang}, only output result:\n${text}`;
+  }
+
   const response = await fetchWithRetry(
     'https://open.bigmodel.cn/api/paas/v4/chat/completions',
     {
       method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${apiKey}`, 
-        'Content-Type': 'application/json' 
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         model: model,
-        messages: [{ 
-          role: 'user', 
-          content: `Translate this to ${targetLang}, only output result:\n${text}` 
+        messages: [{
+          role: 'user',
+          content: content
         }]
       })
     },
     'zhipu'
   );
-  
+
   const data = await response.json();
   return data.choices?.[0]?.message?.content?.trim();
 }
 
-async function translateWithOpenAI(text, targetLang, sourceLang) {
+async function translateWithOpenAI(text, targetLang, sourceLang, context = '') {
   const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
   const apiKey = zdfConfig?.apiKeys?.openai;
   const model = zdfConfig?.selectedModels?.openai || 'gpt-3.5-turbo';
   ensureApiKey(apiKey, 'OpenAI');
 
+  // v2.2.0：构建系统提示语，包含上下文
+  let systemContent = `Translate to ${targetLang}`;
+  if (context) {
+    systemContent = `${context}\n${systemContent}`;
+  }
+
   const response = await fetchWithRetry(
     'https://api.openai.com/v1/chat/completions',
     {
       method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${apiKey}`, 
-        'Content-Type': 'application/json' 
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         model: model,
         messages: [
-          { role: 'system', content: `Translate to ${targetLang}` },
+          { role: 'system', content: systemContent },
           { role: 'user', content: text }
         ]
       })
     },
     'openai'
   );
-  
+
   const data = await response.json();
   return data.choices?.[0]?.message?.content?.trim();
 }
 
-async function translateWithDeepSeek(text, targetLang, sourceLang) {
+async function translateWithDeepSeek(text, targetLang, sourceLang, context = '') {
   const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
   const apiKey = zdfConfig?.apiKeys?.deepseek;
   const model = zdfConfig?.selectedModels?.deepseek || 'deepseek-chat';
   ensureApiKey(apiKey, 'DeepSeek');
 
+  // v2.2.0：构建提示语，包含上下文
+  let content = text;
+  if (context) {
+    content = `${context}\n请翻译以下内容到 ${targetLang}：\n${text}`;
+  } else {
+    content = `Translate to ${targetLang}:\n${text}`;
+  }
+
   const response = await fetchWithRetry(
     'https://api.deepseek.com/chat/completions',
     {
       method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${apiKey}`, 
-        'Content-Type': 'application/json' 
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         model: model,
-        messages: [{ 
-          role: 'user', 
-          content: `Translate to ${targetLang}:\n${text}` 
+        messages: [{
+          role: 'user',
+          content: content
         }]
       })
     },
     'deepseek'
   );
-  
+
   const data = await response.json();
   return data.choices?.[0]?.message?.content?.trim();
 }
@@ -823,19 +878,25 @@ async function translateWithLibreTranslate(text, targetLang, sourceLang) {
   }
 }
 
-async function translateWithOpenRouter(text, targetLang, sourceLang) {
+async function translateWithOpenRouter(text, targetLang, sourceLang, context = '') {
   const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
   const apiKey = zdfConfig?.apiKeys?.openrouter;
   const model = zdfConfig?.selectedModels?.openrouter || 'openai/gpt-4o-mini';
-  
+
   ensureApiKey(apiKey, 'OpenRouter');
-  
+
   const langNames = {
     'zh-CN': '简体中文', 'zh-TW': '繁體中文', 'en': 'English',
     'ja': '日本語', 'ko': '한국어', 'fr': 'Français',
     'de': 'Deutsch', 'es': 'Español', 'ru': 'Русский'
   };
   const targetLangName = langNames[targetLang] || targetLang;
+
+  // v2.2.0：构建系统提示语，包含上下文
+  let systemContent = `You are a professional translator. Translate the following text to ${targetLangName}. Only return the translated text, no explanations.`;
+  if (context) {
+    systemContent = `${context}\n${systemContent}`;
+  }
 
   const response = await fetchWithRetry(
     'https://openrouter.ai/api/v1/chat/completions',
@@ -850,10 +911,7 @@ async function translateWithOpenRouter(text, targetLang, sourceLang) {
       body: JSON.stringify({
         model: model,
         messages: [
-          {
-            role: 'system',
-            content: `You are a professional translator. Translate the following text to ${targetLangName}. Only return the translated text, no explanations.`
-          },
+          { role: 'system', content: systemContent },
           { role: 'user', content: text }
         ],
         temperature: 0.3,
@@ -862,7 +920,7 @@ async function translateWithOpenRouter(text, targetLang, sourceLang) {
     },
     'openrouter'
   );
-  
+
   const data = await response.json();
   if (!data.choices?.[0]?.message?.content) {
     throw new Error('OpenRouter API 返回格式错误: ' + JSON.stringify(data));
@@ -870,35 +928,41 @@ async function translateWithOpenRouter(text, targetLang, sourceLang) {
   return data.choices[0].message.content.trim();
 }
 
-async function translateWithCustomService(serviceId, text, targetLang, sourceLang) {
+async function translateWithCustomService(serviceId, text, targetLang, sourceLang, context = '') {
   const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
   const customService = zdfConfig?.customServices?.find(s => s.id === serviceId);
-  
+
   if (!customService) {
     throw new Error(`自定义服务 ${serviceId} 未找到`);
   }
-  
+
   if (!customService.apiKey) {
     throw new Error(`自定义服务 ${customService.name} 未配置 API Key`);
   }
-  
+
   if (!customService.apiBaseUrl) {
     throw new Error(`自定义服务 ${customService.name} 未配置 API Base URL`);
   }
-  
+
   const langNames = {
     'zh-CN': '简体中文', 'zh-TW': '繁體中文', 'en': 'English',
     'ja': '日本語', 'ko': '한국어', 'fr': 'Français',
     'de': 'Deutsch', 'es': 'Español', 'ru': 'Русский'
   };
   const targetLangName = langNames[targetLang] || targetLang;
-  
+
   let baseUrl = customService.apiBaseUrl.trim();
   while (baseUrl.endsWith('/')) {
     baseUrl = baseUrl.slice(0, -1);
   }
   const model = customService.selectedModel || 'default';
-  
+
+  // v2.2.0：构建系统提示语，包含上下文
+  let systemContent = `You are a professional translator. Translate to ${targetLangName}. Only return the translated text.`;
+  if (context) {
+    systemContent = `${context}\n${systemContent}`;
+  }
+
   if (customService.mode === 'anthropic') {
     const response = await fetchWithRetry(
       `${baseUrl}/messages`,
@@ -912,7 +976,7 @@ async function translateWithCustomService(serviceId, text, targetLang, sourceLan
         body: JSON.stringify({
           model: model,
           max_tokens: 2000,
-          system: `You are a professional translator. Translate to ${targetLangName}. Only return the translated text.`,
+          system: systemContent,
           messages: [{ role: 'user', content: text }]
         })
       },
@@ -936,10 +1000,7 @@ async function translateWithCustomService(serviceId, text, targetLang, sourceLan
         body: JSON.stringify({
           model: model,
           messages: [
-            {
-              role: 'system',
-              content: `You are a professional translator. Translate to ${targetLangName}. Only return the translated text.`
-            },
+            { role: 'system', content: systemContent },
             { role: 'user', content: text }
           ],
           temperature: 0.3,
