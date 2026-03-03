@@ -1,0 +1,145 @@
+/**
+ * Selection Toolbar Styles
+ * 选择工具栏样式
+ */
+
+.zdf-selection-toolbar {
+  position: absolute;
+  z-index: 2147483647;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  padding: 6px;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  pointer-events: auto;
+}
+
+.zdf-selection-toolbar.zdf-theme-dark {
+  background: #2d2d2d;
+  color: #ffffff;
+}
+
+.zdf-toolbar-content {
+  display: flex;
+  gap: 4px;
+}
+
+.zdf-toolbar-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #333333;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.zdf-theme-dark .zdf-toolbar-btn {
+  color: #e0e0e0;
+}
+
+.zdf-toolbar-btn:hover {
+  background: #f0f0f0;
+}
+
+.zdf-theme-dark .zdf-toolbar-btn:hover {
+  background: #3d3d3d;
+}
+
+.zdf-toolbar-btn:active {
+  background: #e0e0e0;
+  transform: scale(0.96);
+}
+
+.zdf-toolbar-btn svg {
+  flex-shrink: 0;
+}
+
+.zdf-toolbar-arrow {
+  position: absolute;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid #ffffff;
+}
+
+.zdf-theme-dark .zdf-toolbar-arrow {
+  border-top-color: #2d2d2d;
+}
+
+.zdf-toolbar-toast {
+  position: absolute;
+  bottom: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #333333;
+  color: #ffffff;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  animation: zdfToastFade 1.5s ease forwards;
+}
+
+@keyframes zdfToastFade {
+  0% { opacity: 0; transform: translateX(-50%) translateY(-5px); }
+  20% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  80% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-5px); }
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .zdf-selection-toolbar {
+    padding: 4px;
+  }
+  
+  .zdf-toolbar-btn {
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+  
+  .zdf-toolbar-btn span {
+    display: none;
+  }
+  
+  .zdf-toolbar-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+}
+
+/* 深色模式自动适配 */
+@media (prefers-color-scheme: dark) {
+  .zdf-selection-toolbar:not(.zdf-theme-light) {
+    background: #2d2d2d;
+    color: #ffffff;
+  }
+  
+  .zdf-selection-toolbar:not(.zdf-theme-light) .zdf-toolbar-btn {
+    color: #e0e0e0;
+  }
+  
+  .zdf-selection-toolbar:not(.zdf-theme-light) .zdf-toolbar-btn:hover {
+    background: #3d3d3d;
+  }
+  
+  .zdf-selection-toolbar:not(.zdf-theme-light) .zdf-toolbar-arrow {
+    border-top-color: #2d2d2d;
+  }
+}
