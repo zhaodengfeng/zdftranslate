@@ -38,6 +38,7 @@
         "lib/translator.js",
         "lib/token-bucket.js",
         "lib/config-manager.js",
+        "lib/free-translate.js",
         "lib/selection-toolbar.js",
         "content.js",
         "youtube.js"

@@ -4,9 +4,21 @@
 
 // 导入新模块（通过 importScripts 在 Service Worker 中加载）
 try {
-  importScripts('lib/token-bucket.js', 'lib/config-manager.js');
+  importScripts(
+    'lib/token-bucket.js', 
+    'lib/config-manager.js',
+    'lib/free-translate.js'
+  );
 } catch (e) {
   console.warn('[ZDFTranslate] Failed to import modules:', e);
+}
+
+// 初始化免费翻译服务
+let freeTranslationService;
+if (typeof FreeTranslationService !== 'undefined') {
+  freeTranslationService = new FreeTranslationService();
+} else {
+  freeTranslationService = null;
 }
 
 const TRANSLATION_CACHE = new Map();
@@ -93,6 +105,7 @@ const lastRequestTime = new Map();
 const MIN_REQUEST_INTERVAL_BY_SERVICE = {
   default: 80,
   libretranslate: 300,
+  'libretranslate-enhanced': 250,
   mymemory: 250,
   aliyun: 60,
   'aliyun-mt': 60,
@@ -101,6 +114,9 @@ const MIN_REQUEST_INTERVAL_BY_SERVICE = {
   deepseek: 60,
   openai: 60,
   openrouter: 60,
+  googlefree: 200,
+  microsoft: 150,
+  deeplx: 200,
   custom: 60
 };
 
@@ -506,6 +522,47 @@ async function handleTranslation(request) {
       break;
     case 'openrouter':
       result = await translateWithOpenRouter(text, targetLang, sourceLang);
+      break;
+    // ============ 免费翻译服务 ============
+    case 'googlefree':
+      if (freeTranslationService) {
+        const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
+        result = await freeTranslationService.translate(text, targetLang, sourceLang, 'googlefree', zdfConfig);
+      } else {
+        throw new Error('免费翻译服务未加载');
+      }
+      break;
+    case 'microsoft':
+      if (freeTranslationService) {
+        const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
+        result = await freeTranslationService.translate(text, targetLang, sourceLang, 'microsoft', zdfConfig);
+      } else {
+        throw new Error('免费翻译服务未加载');
+      }
+      break;
+    case 'deeplx':
+      if (freeTranslationService) {
+        const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
+        result = await freeTranslationService.translate(text, targetLang, sourceLang, 'deeplx', zdfConfig);
+      } else {
+        throw new Error('免费翻译服务未加载');
+      }
+      break;
+    case 'mymemory':
+      if (freeTranslationService) {
+        const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
+        result = await freeTranslationService.translate(text, targetLang, sourceLang, 'mymemory', zdfConfig);
+      } else {
+        throw new Error('免费翻译服务未加载');
+      }
+      break;
+    case 'libretranslate-enhanced':
+      if (freeTranslationService) {
+        const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
+        result = await freeTranslationService.translate(text, targetLang, sourceLang, 'libretranslate', zdfConfig);
+      } else {
+        throw new Error('免费翻译服务未加载');
+      }
       break;
     default:
       if (service?.startsWith('custom_')) {
