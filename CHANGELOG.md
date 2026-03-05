@@ -1,5 +1,14 @@
 # Changelog
 
+## v26.3.5 (2026-03-05)
+
+- Migrated core codebase to the v6 line and updated extension version to `26.3.5`.
+- Added provider registry split (`providers.js`) and unified provider/model UI structure.
+- Added official-style provider/model icon support in popup and settings selectors.
+- YouTube bilingual subtitles changed to manual player-button toggle only (removed forced auto-enable behavior).
+- Removed extra blue left marker/visual noise from bilingual web translation display.
+- Standardized release package naming to `zdftranslate-<version>.zip`.
+
 ## v2.1.18 (2026-02-17)
 
 - Version bump to 2.1.18.

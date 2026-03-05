@@ -7,7 +7,7 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 
 ## Latest Release
 
-- **Version:** `2.1.18`
+- **Version:** `26.3.5`
 
 ## Features
 
@@ -15,12 +15,12 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 - **Multiple Modes** — Bilingual / Replace / Hover translation
 - **Save as Image** — Export current mode (original / bilingual) as image
 - **Export as PDF** — Export current mode (original / bilingual) as paginated PDF
-- **YouTube Dual Subtitles** — Original + translated subtitles
+- **YouTube Dual Subtitles** — Manual toggle via YouTube player button (no forced auto-enable)
 - **OpenRouter Support** — Access hundreds of models via OpenRouter (GPT-4o, Claude 3.5, Gemini Pro, etc.)
 - **Custom Services** — Add any OpenAI or Anthropic compatible API endpoints
 - **Multiple Providers** — Google Translate, DeepL, OpenAI, Kimi, Zhipu, DeepSeek, Alibaba Cloud
 - **Custom Styles** — Adjustable colors, font size, spacing
-- **Site Exclusion** — Blacklist sites you don't want translated
+- **Official-style Provider Icons** — Service/model selectors support high-recognition brand-style icons
 
 ## Install
 
@@ -30,7 +30,7 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 
 ### Install from release package
 
-1. Download and unzip `zdf-translate-v2.1.16.zip`
+1. Download and unzip `zdftranslate-26.3.5.zip`
 2. Open `chrome://extensions/`
 3. Enable **Developer mode**
 4. Click **Load unpacked**
@@ -39,10 +39,10 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 ## Configuration
 
 Click the extension icon → Settings to configure:
-- Choose a translation provider (LibreTranslate is free by default)
+- Choose a translation provider (free providers and API providers supported)
 - Enter your API key for advanced AI models
-- Configure custom API endpoints in the "International Services" section
-- Customize display styles
+- Configure custom API endpoints in the service settings
+- Customize display styles and behavior options
 
 ## API Keys
 

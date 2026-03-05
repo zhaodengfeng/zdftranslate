@@ -1,6 +1,6 @@
 # Privacy Policy — ZDFTranslate
 
-**Last updated:** February 17, 2026
+**Last updated:** March 5, 2026
 
 ## Data Collection
 
@@ -12,7 +12,7 @@ The extension stores the following data **locally in your browser only**:
 
 - Translation preferences (target language, display mode, etc.)
 - API keys for third-party translation services
-- Excluded website list
+- UI and behavior preferences (display style, floating actions, YouTube subtitle toggle mode)
 
 This data never leaves your device.
 
