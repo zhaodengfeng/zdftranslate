@@ -129,6 +129,8 @@ header p {
 }
 
 .card {
+  position: relative;
+  overflow: visible;
   background: rgba(255, 255, 255, 0.86);
   border-radius: 18px;
   padding: 24px;
@@ -142,6 +144,10 @@ header p {
 .card:hover {
   transform: translateY(-1px);
   box-shadow: 0 14px 34px rgba(30, 64, 175, 0.09), 0 6px 14px rgba(15, 23, 42, 0.06);
+}
+
+.card.zdf-card-open {
+  z-index: 9000;
 }
 
 .card-header {
@@ -200,7 +206,11 @@ header p {
   margin-top: 5px;
 }
 
+#sec-free { z-index: 3000; }
+
 .quick-service-picker {
+  position: relative;
+  z-index: 3500;
   padding: 16px;
   border: 1px solid rgba(59, 130, 246, 0.2);
   border-radius: 12px;

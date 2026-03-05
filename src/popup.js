@@ -30,17 +30,148 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  const SERVICE_ICON_PATHS = {
+    'microsoft-free': 'assets/providers/microsoft.svg',
+    'google-free': 'assets/providers/google.png',
+    aliyun: 'assets/providers/aliyun.png',
+    kimi: 'assets/providers/kimi.png',
+    zhipu: 'assets/providers/zhipu.png',
+    deepseek: 'assets/providers/deepseek.png',
+    google: 'assets/providers/google.png',
+    deepl: 'assets/providers/deepl.svg',
+    openai: 'assets/providers/openai.png',
+    openrouter: 'assets/providers/openrouter.png',
+    custom: 'assets/providers/custom.png',
+  };
+
+  function serviceIcon(serviceId) {
+    if (String(serviceId || '').startsWith('custom_')) return SERVICE_ICON_PATHS.custom;
+    return SERVICE_ICON_PATHS[serviceId] || SERVICE_ICON_PATHS.custom;
+  }
+
+  function renderServiceSelectWithIcons() {
+    const card = translationService?.closest('.service-card');
+    if (!card) return;
+
+    let rich = card.querySelector('.service-select-rich');
+    if (!rich) {
+      rich = document.createElement('div');
+      rich.className = 'service-select-rich';
+      rich.innerHTML = '<button type="button" class="service-select-trigger"></button><div class="service-select-menu"></div>';
+      card.appendChild(rich);
+
+      document.addEventListener('click', (e) => {
+        if (!rich.contains(e.target)) rich.classList.remove('open');
+      });
+    }
+
+    const trigger = rich.querySelector('.service-select-trigger');
+    const menu = rich.querySelector('.service-select-menu');
+    const options = Array.from(translationService.options || []);
+    const selected = options.find(o => o.value === translationService.value) || options[0];
+
+    if (selected) {
+      trigger.innerHTML = `<img src="${serviceIcon(selected.value)}" class="service-icon" alt=""><span class="service-text">${selected.textContent || ''}</span><span class="service-caret">▾</span>`;
+    }
+
+    menu.innerHTML = '';
+    options.forEach((opt) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'service-select-item';
+      if (opt.disabled) item.classList.add('disabled');
+      if (opt.value === translationService.value) item.classList.add('active');
+      item.innerHTML = `<img src="${serviceIcon(opt.value)}" class="service-icon" alt=""><span class="service-text">${opt.textContent || ''}</span>`;
+      item.addEventListener('click', async () => {
+        if (opt.disabled) return;
+        translationService.value = opt.value;
+        translationService.dispatchEvent(new Event('change', { bubbles: true }));
+        rich.classList.remove('open');
+        renderServiceSelectWithIcons();
+      });
+      menu.appendChild(item);
+    });
+
+    trigger.onclick = () => {
+      const willOpen = !rich.classList.contains('open');
+      rich.classList.toggle('open');
+      if (willOpen) {
+        const triggerRect = trigger.getBoundingClientRect();
+        const spaceBelow = window.innerHeight - triggerRect.bottom;
+        const spaceAbove = triggerRect.top;
+        const openUp = spaceBelow < 180 && spaceAbove > spaceBelow;
+        rich.classList.toggle('open-up', openUp);
+        const available = Math.max(120, Math.min(240, (openUp ? spaceAbove : spaceBelow) - 12));
+        menu.style.maxHeight = `${available}px`;
+      }
+    };
+    translationService.style.display = 'none';
+  }
+
+  function validateCustomServiceRequired(service) {
+    const name = (service?.name || '').trim();
+    const apiBaseUrl = (service?.apiBaseUrl || '').trim();
+    const apiKey = (service?.apiKey || '').trim();
+    const selectedModel = (service?.selectedModel || '').trim();
+
+    if (!name || !apiBaseUrl || !apiKey || !selectedModel) return false;
+
+    try {
+      const u = new URL(apiBaseUrl);
+      if (!/^https?:$/.test(u.protocol)) return false;
+    } catch (e) {
+      return false;
+    }
+
+    return true;
+  }
+
+  function hasApiKey(config, serviceId) {
+    if (serviceId === 'microsoft-free' || serviceId === 'google-free') return true;
+
+    const apiMap = {
+      kimi: 'kimi',
+      zhipu: 'zhipu',
+      aliyun: 'aliyun',
+      deepseek: 'deepseek',
+      google: 'google',
+      deepl: 'deepl',
+      openai: 'openai',
+      openrouter: 'openrouter'
+    };
+
+    const keyField = apiMap[serviceId];
+    if (!keyField) return false;
+    return !!(config?.apiKeys?.[keyField] || '').trim();
+  }
+
+  function applyServiceAvailability(config) {
+    const options = Array.from(translationService.options || []);
+    options.forEach((option) => {
+      const serviceId = option.value;
+      const enabled = hasApiKey(config, serviceId);
+      option.disabled = !enabled;
+    });
+
+    const selectedOption = translationService.options[translationService.selectedIndex];
+    if (selectedOption?.disabled) {
+      translationService.value = 'microsoft-free';
+    }
+  }
+
   // 加载配置和状态
   const config = await loadConfig();
   
-  // 动态加载自定义服务选项（直接追加到下拉列表末尾）
+  // 动态加载自定义服务选项（只追加有效服务，避免“未命名服务”）
   if (config.customServices?.length > 0) {
-    config.customServices.forEach(service => {
-      const option = document.createElement('option');
-      option.value = service.id;
-      option.textContent = service.name || '未命名服务';
-      translationService.appendChild(option);
-    });
+    config.customServices
+      .filter(validateCustomServiceRequired)
+      .forEach(service => {
+        const option = document.createElement('option');
+        option.value = service.id;
+        option.textContent = service.name;
+        translationService.appendChild(option);
+      });
   }
   
   // 获取当前标签页并刷新状态（优先读 content script，失败再回退 background）
@@ -88,13 +219,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     await updateConfig({ displayMode: currentMode });
   }
 
-  const serviceValue = config.translationService || 'libretranslate';
+  const serviceValue = config.translationService || 'microsoft-free';
   if (translationService.querySelector(`option[value="${serviceValue}"]`)) {
     translationService.value = serviceValue;
   } else {
-    translationService.value = 'libretranslate';
-    await updateConfig({ translationService: 'libretranslate' });
+    translationService.value = 'microsoft-free';
+    await updateConfig({ translationService: 'microsoft-free' });
   }
+
+  applyServiceAvailability(config);
+
+  if (translationService.options[translationService.selectedIndex]?.disabled) {
+    translationService.value = 'microsoft-free';
+    await updateConfig({ translationService: 'microsoft-free' });
+  }
+
+  renderServiceSelectWithIcons();
 
   // 事件监听（其他）
   sourceLang.addEventListener('change', async () => {
@@ -120,6 +260,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   translationService.addEventListener('change', async () => {
     await updateConfig({ translationService: translationService.value });
+    renderServiceSelectWithIcons();
     showToast('翻译服务已切换');
   });
 

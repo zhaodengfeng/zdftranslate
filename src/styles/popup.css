@@ -17,7 +17,7 @@ body {
 .popup {
   background: #fff;
   border-radius: 16px;
-  overflow: hidden;
+  overflow: visible;
   box-shadow: 0 4px 24px rgba(59, 130, 246, 0.08);
 }
 
@@ -185,6 +185,66 @@ body {
   color: #1e3a5f;
   padding: 8px;
 }
+
+.service-select-rich { position: relative; flex: 1; }
+.service-select-trigger {
+  width: 100%;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e3a5f;
+  cursor: pointer;
+  min-width: 0;
+}
+.service-select-trigger .service-text {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.service-icon { width: 16px; height: 16px; object-fit: contain; border-radius: 4px; background: #fff; flex: 0 0 16px; }
+.service-caret { margin-left: auto; color: #94a3b8; flex: 0 0 auto; }
+.service-select-menu {
+  display: none;
+  position: absolute;
+  left: -10px;
+  right: -2px;
+  top: calc(100% + 8px);
+  max-height: 170px;
+  overflow: auto;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(2, 6, 23, 0.15);
+  z-index: 1000;
+}
+.service-select-rich.open .service-select-menu { display: block; }
+.service-select-rich.open-up .service-select-menu { top: auto; bottom: calc(100% + 8px); }
+.service-select-menu::-webkit-scrollbar { width: 6px; }
+.service-select-menu::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+.service-select-menu::-webkit-scrollbar-track { background: transparent; }
+.service-select-item {
+  width: 100%;
+  border: none;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  font-size: 13px;
+  color: #1e3a5f;
+  text-align: left;
+  cursor: pointer;
+}
+.service-select-item .service-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.service-select-item:hover { background: #f8fafc; }
+.service-select-item.active { background: #eff6ff; }
+.service-select-item.disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* ========== Options Section ========== */
 .options-section {

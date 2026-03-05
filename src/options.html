@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ZDFTranslate 设置</title>
   <link rel="stylesheet" href="styles/options.css">
+  <link rel="stylesheet" href="styles/model-rich-select.css">
 </head>
 <body>
   <div class="container">
@@ -42,16 +43,17 @@
         <div class="form-group quick-service-picker">
           <label>当前使用服务</label>
           <select id="activeService">
-            <option value="libretranslate">LibreTranslate（免费免配置）</option>
-            <option value="aliyun">阿里云百炼</option>
-            <option value="kimi">Kimi（月之暗面）</option>
-            <option value="zhipu">智谱清言（GLM）</option>
+            <option value="microsoft-free">Microsoft Translator (Free)</option>
+            <option value="google-free">Google Translate (Free)</option>
+            <option value="aliyun">Alibaba Cloud Bailian</option>
+            <option value="kimi">Kimi (Moonshot)</option>
+            <option value="zhipu">Zhipu GLM</option>
             <option value="deepseek">DeepSeek</option>
             <option value="openai">OpenAI</option>
             <option value="openrouter">OpenRouter</option>
             <option value="google">Google Translate API</option>
             <option value="deepl">DeepL API</option>
-            <option value="custom">自定义服务</option>
+            <option value="custom">Custom Service</option>
           </select>
           <p class="service-note">提示：选择后仅显示对应配置区域，保存即生效。</p>
         </div>
@@ -269,13 +271,6 @@
             <h2 class="card-title">一些开关选项</h2>
             <p class="card-subtitle">YouTube 字幕与悬浮导出图标和水印控制</p>
           </div>
-        </div>
-
-        <div class="form-group checkbox">
-          <label>
-            <input type="checkbox" id="autoTranslateYouTube">
-            自动开启YouTube双语字幕
-          </label>
         </div>
 
         <div class="form-group checkbox">

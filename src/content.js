@@ -16,7 +16,8 @@
     targetLang: 'zh-CN',
     sourceLang: 'auto',
     displayMode: 'bilingual', // bilingual | replace | hover
-    translationService: 'libretranslate',
+    translationService: 'microsoft-free',
+    enableAIContentAware: false,
     apiKeys: {
       google: '',
       deepl: '',
@@ -277,7 +278,7 @@
   // 根据翻译服务动态设置并发参数
   function getBatchTuning(service) {
     // 免费公共服务更容易限流，保守一点
-    if (service === 'libretranslate') {
+    if (['microsoft-free', 'google-free', 'libretranslate'].includes(service)) {
       return { batchSize: 3, concurrency: 2 };
     }
     // API Key 服务可稍微激进，提升速度
@@ -483,9 +484,7 @@
       color: ${config.style.translationColor};
       font-size: ${config.style.translationSize};
       margin-top: 8px;
-      padding: 10px 0 10px 14px;
-      border-left: 3px solid #3b82f6;
-      background: linear-gradient(to right, rgba(59, 130, 246, 0.06), transparent);
+      padding: 10px 0;
       line-height: ${config.style.lineSpacing};
       transition: opacity 0.3s ease;
     `;
@@ -500,25 +499,54 @@
     translatedElements.add(element);
   }
 
-  // 调用翻译API
+  function getSelectedModelForService(serviceName) {
+    return config?.selectedModels?.[serviceName] || '';
+  }
+
+  function getArticleContext() {
+    if (!config.enableAIContentAware) {
+      return { articleTitle: '', articleSummary: '' };
+    }
+
+    const title = (document.title || '').trim();
+    const main = document.querySelector('article, main, [role="main"], .post-content, .entry-content, .article-body') || document.body;
+    const raw = (main?.innerText || '').replace(/\s+/g, ' ').trim();
+    const summary = raw.slice(0, 800);
+
+    return {
+      articleTitle: title,
+      articleSummary: summary,
+    };
+  }
+
+  // 调用翻译API（统一入口）
   async function translateText(text) {
     return new Promise((resolve, reject) => {
       if (!text || !text.trim()) {
         reject(new Error('空文本'));
         return;
       }
-      
+
+      const service = config.translationService;
+      const model = getSelectedModelForService(service);
+      const { articleTitle, articleSummary } = getArticleContext();
+
       chrome.runtime.sendMessage({
         action: 'translate',
         text: text,
         targetLang: config.targetLang,
         sourceLang: config.sourceLang,
-        service: config.translationService
+        service,
+        model,
+        enableAIContentAware: !!config.enableAIContentAware,
+        articleTitle,
+        articleSummary,
+        promptVersion: 'v6-p1'
       }, (response) => {
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message));
-        } else if (response && response.translatedText) {
-          resolve(response.translatedText);
+        } else if (response && Object.prototype.hasOwnProperty.call(response, 'translatedText')) {
+          resolve(response.translatedText || '');
         } else {
           reject(new Error(response?.error || '翻译失败'));
         }
@@ -1625,6 +1653,130 @@
     return uniq;
   }
 
+  // 选中文本后的快捷翻译按钮（替代右键菜单路径）
+  let selectionQuickBtn = null;
+  let selectionQuickHideTimer = null;
+
+  function ensureSelectionQuickButton() {
+    if (selectionQuickBtn && document.body.contains(selectionQuickBtn)) return selectionQuickBtn;
+
+    const btn = document.createElement('button');
+    btn.id = 'zdf-selection-quick-btn';
+    btn.className = 'zdf-selection-quick-btn';
+    btn.title = '翻译选中文本';
+    btn.innerHTML = `<img src="${chrome.runtime.getURL('assets/float-icon-32.png')}" alt="ZDFTranslate">`;
+
+    // 防止点击按钮时触发 selection 丢失
+    btn.addEventListener('mousedown', (e) => e.preventDefault());
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const selectedText = (window.getSelection()?.toString() || '').trim();
+      if (!selectedText) {
+        hideSelectionQuickButton();
+        return;
+      }
+
+      const originalSegments = getSelectionSegments();
+      const textToTranslate = (originalSegments && originalSegments.length)
+        ? originalSegments.join('\n\n')
+        : selectedText;
+
+      showTranslationPopup(selectedText, null, null, originalSegments);
+      hideSelectionQuickButton();
+
+      try {
+        const translatedText = await translateText(textToTranslate);
+        let translatedSegments = (translatedText || '')
+          .split(/\n\s*\n+/)
+          .map(s => s.trim())
+          .filter(Boolean);
+
+        if (translatedSegments.length <= 1) {
+          translatedSegments = (translatedText || '').split(/\n+/).map(s => s.trim()).filter(Boolean);
+        }
+
+        showTranslationPopup(selectedText, translatedText, null, originalSegments, translatedSegments);
+      } catch (error) {
+        showTranslationPopup(selectedText, null, error?.message || '翻译失败');
+      }
+    });
+
+    document.body.appendChild(btn);
+    selectionQuickBtn = btn;
+    return btn;
+  }
+
+  function hideSelectionQuickButton() {
+    if (!selectionQuickBtn) return;
+    selectionQuickBtn.classList.remove('show');
+  }
+
+  function scheduleHideSelectionQuickButton(delay = 120) {
+    if (selectionQuickHideTimer) clearTimeout(selectionQuickHideTimer);
+    selectionQuickHideTimer = setTimeout(() => {
+      hideSelectionQuickButton();
+    }, delay);
+  }
+
+  function showSelectionQuickButtonNearSelection() {
+    const sel = window.getSelection();
+    const text = (sel?.toString() || '').trim();
+    if (!sel || sel.rangeCount === 0 || !text) {
+      hideSelectionQuickButton();
+      return;
+    }
+
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    if (!rect || (!rect.width && !rect.height)) {
+      hideSelectionQuickButton();
+      return;
+    }
+
+    const btn = ensureSelectionQuickButton();
+    const btnW = 34;
+    const btnH = 34;
+
+    let left = window.scrollX + rect.right + 8;
+    let top = window.scrollY + rect.bottom + 8;
+
+    const maxLeft = window.scrollX + window.innerWidth - btnW - 8;
+    const maxTop = window.scrollY + window.innerHeight - btnH - 8;
+
+    left = Math.min(Math.max(window.scrollX + 8, left), maxLeft);
+    top = Math.min(Math.max(window.scrollY + 8, top), maxTop);
+
+    btn.style.left = `${left}px`;
+    btn.style.top = `${top}px`;
+    btn.classList.add('show');
+  }
+
+  document.addEventListener('selectionchange', () => {
+    const text = (window.getSelection()?.toString() || '').trim();
+    if (text) {
+      showSelectionQuickButtonNearSelection();
+    } else {
+      scheduleHideSelectionQuickButton(60);
+    }
+  });
+
+  document.addEventListener('mousedown', (e) => {
+    if (selectionQuickBtn && selectionQuickBtn.contains(e.target)) return;
+    scheduleHideSelectionQuickButton(60);
+  });
+
+  window.addEventListener('scroll', () => hideSelectionQuickButton(), { passive: true });
+  window.addEventListener('resize', () => {
+    hideSelectionQuickButton();
+    const btn = document.getElementById('zdf-floating-translate-btn');
+    if (btn) {
+      applyFloatingButtonPosition(btn);
+      relayoutFloatingActionButtons();
+    }
+  });
+
   // 监听来自 background 的弹窗消息
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'showTranslationPopup') {
@@ -1643,7 +1795,186 @@
   // ========== 悬浮翻译按钮 ==========
   
   let isTranslating = false; // 翻译进行中标记
-  
+  let floatingActionsHideTimer = null;
+  let floatingActionsOpen = false;
+  let floatingDragging = false;
+  let suppressFloatingClick = false;
+
+  async function saveFloatingButtonPosition(left, top) {
+    try {
+      const result = await chrome.storage.sync.get(['zdfConfig']);
+      const cfg = result?.zdfConfig || {};
+      cfg.floatingButtonPosition = {
+        left: Math.round(left),
+        top: Math.round(top)
+      };
+      await chrome.storage.sync.set({ zdfConfig: cfg });
+    } catch (e) {
+      // 忽略持久化失败，避免影响交互
+    }
+  }
+
+  function applyFloatingButtonPosition(btn) {
+    if (!btn) return;
+
+    const saved = config?.floatingButtonPosition;
+    if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.top)) {
+      const maxLeft = Math.max(8, window.innerWidth - btn.offsetWidth - 8);
+      const maxTop = Math.max(8, window.innerHeight - btn.offsetHeight - 8);
+      btn.style.left = `${Math.min(Math.max(8, saved.left), maxLeft)}px`;
+      btn.style.top = `${Math.min(Math.max(8, saved.top), maxTop)}px`;
+    } else {
+      // 默认放在右下但给右侧图标预留安全空间
+      btn.style.left = `${Math.max(8, window.innerWidth - 72)}px`;
+      btn.style.top = `${Math.max(8, window.innerHeight - 196)}px`;
+    }
+
+    btn.style.right = 'auto';
+    btn.style.bottom = 'auto';
+  }
+
+  function openFloatingActions() {
+    if (floatingDragging) return;
+
+    floatingActionsOpen = true;
+    if (floatingActionsHideTimer) {
+      clearTimeout(floatingActionsHideTimer);
+      floatingActionsHideTimer = null;
+    }
+
+    relayoutFloatingActionButtons();
+
+    const captureBtn = document.getElementById('zdf-capture-btn');
+    const pdfBtn = document.getElementById('zdf-pdf-btn');
+    if (captureBtn) {
+      captureBtn.classList.remove('zdf-action-hidden');
+      captureBtn.classList.add('zdf-action-visible');
+    }
+    if (pdfBtn) {
+      pdfBtn.classList.remove('zdf-action-hidden');
+      pdfBtn.classList.add('zdf-action-visible');
+    }
+  }
+
+  function closeFloatingActions(delay = 140) {
+    if (floatingActionsHideTimer) clearTimeout(floatingActionsHideTimer);
+    floatingActionsHideTimer = setTimeout(() => {
+      floatingActionsOpen = false;
+      const captureBtn = document.getElementById('zdf-capture-btn');
+      const pdfBtn = document.getElementById('zdf-pdf-btn');
+      if (captureBtn) {
+        captureBtn.classList.remove('zdf-action-visible');
+        captureBtn.classList.add('zdf-action-hidden');
+      }
+      if (pdfBtn) {
+        pdfBtn.classList.remove('zdf-action-visible');
+        pdfBtn.classList.add('zdf-action-hidden');
+      }
+    }, delay);
+  }
+
+  function bindFloatingButtonDrag(btn) {
+    if (!btn) return;
+
+    let pointerId = null;
+    let startX = 0;
+    let startY = 0;
+    let originLeft = 0;
+    let originTop = 0;
+    let moved = false;
+    let rafId = 0;
+    let nextLeft = 0;
+    let nextTop = 0;
+
+    const applyDragFrame = () => {
+      rafId = 0;
+      btn.style.left = `${nextLeft}px`;
+      btn.style.top = `${nextTop}px`;
+      btn.style.right = 'auto';
+      btn.style.bottom = 'auto';
+      if (floatingActionsOpen) {
+        relayoutFloatingActionButtons();
+      }
+    };
+
+    const onPointerMove = (ev) => {
+      if (pointerId === null || ev.pointerId !== pointerId) return;
+
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+
+      if (!floatingDragging && Math.hypot(dx, dy) > 2) {
+        floatingDragging = true;
+        moved = true;
+        suppressFloatingClick = true;
+        btn.classList.add('zdf-dragging');
+        closeFloatingActions(0);
+      }
+
+      if (!floatingDragging) return;
+
+      const maxLeft = Math.max(8, window.innerWidth - btn.offsetWidth - 8);
+      const maxTop = Math.max(8, window.innerHeight - btn.offsetHeight - 8);
+      nextLeft = Math.min(Math.max(8, originLeft + dx), maxLeft);
+      nextTop = Math.min(Math.max(8, originTop + dy), maxTop);
+
+      if (!rafId) {
+        rafId = requestAnimationFrame(applyDragFrame);
+      }
+      ev.preventDefault();
+    };
+
+    const endDrag = async (ev) => {
+      if (pointerId === null || ev.pointerId !== pointerId) return;
+
+      try { btn.releasePointerCapture(pointerId); } catch (_) {}
+      pointerId = null;
+
+      window.removeEventListener('pointermove', onPointerMove, true);
+      window.removeEventListener('pointerup', endDrag, true);
+      window.removeEventListener('pointercancel', endDrag, true);
+
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+        applyDragFrame();
+      }
+
+      btn.classList.remove('zdf-dragging');
+
+      if (moved) {
+        const rect2 = btn.getBoundingClientRect();
+        await saveFloatingButtonPosition(rect2.left, rect2.top);
+      }
+
+      setTimeout(() => {
+        floatingDragging = false;
+      }, 0);
+    };
+
+    btn.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+
+      pointerId = e.pointerId;
+      moved = false;
+      floatingDragging = false;
+      startX = e.clientX;
+      startY = e.clientY;
+
+      const rect = btn.getBoundingClientRect();
+      originLeft = rect.left;
+      originTop = rect.top;
+      nextLeft = originLeft;
+      nextTop = originTop;
+
+      btn.setPointerCapture(pointerId);
+      window.addEventListener('pointermove', onPointerMove, true);
+      window.addEventListener('pointerup', endDrag, true);
+      window.addEventListener('pointercancel', endDrag, true);
+      e.preventDefault();
+    });
+  }
+
   function createFloatingButton() {
     // 检查是否已存在
     if (document.getElementById('zdf-floating-translate-btn')) return;
@@ -1665,8 +1996,12 @@
     `;
     
     btn.addEventListener('click', handleFloatingButtonClick);
-    
+    btn.addEventListener('mouseenter', () => openFloatingActions());
+    btn.addEventListener('mouseleave', () => closeFloatingActions(180));
+
     document.body.appendChild(btn);
+    applyFloatingButtonPosition(btn);
+    bindFloatingButtonDrag(btn);
     
     // 更新按钮状态
     updateFloatingButtonState();
@@ -1675,6 +2010,10 @@
   async function handleFloatingButtonClick() {
     const btn = document.getElementById('zdf-floating-translate-btn');
     if (!btn) return;
+    if (floatingDragging || suppressFloatingClick) {
+      suppressFloatingClick = false;
+      return;
+    }
     
     if (translationActive || isTranslating) {
       // 已翻译或翻译中 -> 恢复原文
@@ -2245,12 +2584,25 @@
     }
 
     if (lrRects.length > 0) {
-      const minLeft = Math.min(...lrRects.map(r => r.left));
-      const maxRight = Math.max(...lrRects.map(r => r.right));
       const docRight = Math.max(document.documentElement.clientWidth, document.documentElement.scrollWidth);
+      const viewportW = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 1);
 
-      left = Math.max(0, minLeft - 16);
-      right = Math.min(docRight, maxRight + 16);
+      // 过滤掉“横跨全屏”的异常节点（常见于广告壳/背景容器），避免把截图左侧拉出大片空白
+      const stableRects = lrRects.filter(r => !(r.width > viewportW * 0.92 && r.height < 260));
+      const baseRects = stableRects.length > 0 ? stableRects : lrRects;
+
+      const lefts = baseRects.map(r => r.left).sort((a, b) => a - b);
+      const rights = baseRects.map(r => r.right).sort((a, b) => a - b);
+
+      // 用分位数替代 min/max，规避单个离群节点把边界拉偏
+      const p20 = Math.max(0, Math.floor((lefts.length - 1) * 0.2));
+      const p80 = Math.max(0, Math.floor((rights.length - 1) * 0.8));
+
+      const minLeft = lefts[p20] ?? Math.min(...baseRects.map(r => r.left));
+      const maxRight = rights[p80] ?? Math.max(...baseRects.map(r => r.right));
+
+      left = Math.max(0, minLeft - 12);
+      right = Math.min(docRight, maxRight + 12);
 
       // 避免被异常节点压得太窄
       const minWidth = 420;
@@ -2495,9 +2847,7 @@
           color: ${config.style.translationColor};
           font-size: ${config.style.translationSize};
           margin-top: 8px;
-          padding: 10px 0 10px 14px;
-          border-left: 3px solid #3b82f6;
-          background: linear-gradient(to right, rgba(59, 130, 246, 0.06), transparent);
+          padding: 10px 0;
           line-height: ${config.style.lineSpacing};
         `;
       });
@@ -2763,7 +3113,7 @@
 
     const btn = document.createElement('div');
     btn.id = 'zdf-capture-btn';
-    btn.className = 'zdf-capture-btn';
+    btn.className = 'zdf-capture-btn zdf-action-hidden zdf-action-left';
     btn.innerHTML = `
       <svg class="zdf-capture-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M4 7.5h3l1.2-2h7.6l1.2 2H20a1.8 1.8 0 0 1 1.8 1.8v8.7A1.8 1.8 0 0 1 20 19.8H4A1.8 1.8 0 0 1 2.2 18V9.3A1.8 1.8 0 0 1 4 7.5Z"/>
@@ -2774,6 +3124,8 @@
       e.stopPropagation();
       captureArticleScreenshot();
     });
+    btn.addEventListener('mouseenter', () => openFloatingActions());
+    btn.addEventListener('mouseleave', () => closeFloatingActions(180));
 
     document.body.appendChild(btn);
     updateCaptureButtonState();
@@ -2789,7 +3141,7 @@
 
     const btn = document.createElement('div');
     btn.id = 'zdf-pdf-btn';
-    btn.className = 'zdf-capture-btn zdf-pdf-btn';
+    btn.className = 'zdf-capture-btn zdf-pdf-btn zdf-action-hidden zdf-action-right';
     btn.innerHTML = `
       <svg class="zdf-capture-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/>
@@ -2801,6 +3153,8 @@
       e.stopPropagation();
       exportArticlePdf();
     });
+    btn.addEventListener('mouseenter', () => openFloatingActions());
+    btn.addEventListener('mouseleave', () => closeFloatingActions(180));
 
     document.body.appendChild(btn);
     updatePdfButtonState();
@@ -2834,24 +3188,46 @@
 
     const pdfBtn = document.getElementById('zdf-pdf-btn');
     const imageBtn = document.getElementById('zdf-capture-btn');
+    if (!pdfBtn && !imageBtn) return;
 
-    const baseBottom = parseInt(getComputedStyle(floatingBtn).bottom, 10) || 20;
-    const baseRight = parseInt(getComputedStyle(floatingBtn).right, 10) || 20;
+    const rect = floatingBtn.getBoundingClientRect();
+    const actionW = imageBtn?.offsetWidth || pdfBtn?.offsetWidth || 30;
+    const actionH = imageBtn?.offsetHeight || pdfBtn?.offsetHeight || 30;
+
+    const x = Math.max(8, Math.min(window.innerWidth - actionW - 8, rect.left + (rect.width - actionW) / 2));
     const gap = 8;
 
-    let nextBottom = baseBottom + floatingBtn.offsetHeight + gap;
+    // 一个在上、一个在下（围绕主按钮）
+    let imageY = rect.top - actionH - gap;
+    let pdfY = rect.bottom + gap;
 
-    // 顺序保持：最上面 PDF，中间图片，最下面翻译
-    // 先放离翻译最近的图片按钮，再把 PDF 放到更上方，避免中间留空。
+    // 若顶部空间不足：把“上方按钮”翻到下方，避免不可见
+    if (imageY < 8) {
+      imageY = rect.bottom + gap;
+      pdfY = imageY + actionH + gap;
+    }
+
+    // 若底部空间不足：把“下方按钮”翻到上方
+    if (pdfY > window.innerHeight - actionH - 8) {
+      pdfY = rect.top - actionH - gap;
+      imageY = pdfY - actionH - gap;
+    }
+
+    imageY = Math.max(8, Math.min(window.innerHeight - actionH - 8, imageY));
+    pdfY = Math.max(8, Math.min(window.innerHeight - actionH - 8, pdfY));
+
     if (imageBtn) {
-      imageBtn.style.bottom = `${nextBottom}px`;
-      imageBtn.style.right = `${baseRight}px`;
-      nextBottom += imageBtn.offsetHeight + gap;
+      imageBtn.style.left = `${x}px`;
+      imageBtn.style.top = `${imageY}px`;
+      imageBtn.style.right = 'auto';
+      imageBtn.style.bottom = 'auto';
     }
 
     if (pdfBtn) {
-      pdfBtn.style.bottom = `${nextBottom}px`;
-      pdfBtn.style.right = `${baseRight}px`;
+      pdfBtn.style.left = `${x}px`;
+      pdfBtn.style.top = `${pdfY}px`;
+      pdfBtn.style.right = 'auto';
+      pdfBtn.style.bottom = 'auto';
     }
   }
 
@@ -2882,6 +3258,10 @@
     }
 
     relayoutFloatingActionButtons();
+
+    if (!floatingActionsOpen) {
+      closeFloatingActions(0);
+    }
   };
 
   // 页面加载完成后创建悬浮按钮

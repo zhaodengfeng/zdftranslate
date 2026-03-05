@@ -1,5 +1,20 @@
 // ZDFTranslate - Background Service Worker
 // 处理翻译请求、API调用、跨域等问题
+try {
+  importScripts('providers.js');
+} catch (error) {
+  console.error('[ZDFTranslate] failed to load providers.js:', error);
+}
+
+const {
+  DEFAULT_MODELS,
+  isCustomService,
+  isLLMService,
+  resolveModelForService,
+  resolveTargetLangName,
+  buildTranslationMessages,
+  extractChatCompletionText,
+} = self.ZDFProviders || {};
 
 const TRANSLATION_CACHE = new Map();
 const CACHE_MAX_SIZE = 1000;
@@ -11,6 +26,8 @@ const tabTranslationStatus = new Map();
 const lastRequestTime = new Map();
 const MIN_REQUEST_INTERVAL_BY_SERVICE = {
   default: 80,
+  'google-free': 120,
+  'microsoft-free': 120,
   libretranslate: 300,
   mymemory: 250,
   aliyun: 60,
@@ -22,6 +39,13 @@ const MIN_REQUEST_INTERVAL_BY_SERVICE = {
   openrouter: 60,
   custom: 60
 };
+
+// 翻译队列（P0）：同配置请求短时间聚合为一次批处理调用
+const translationBatchQueues = new Map();
+const BATCH_DELAY_MS = 60;
+const MAX_BATCH_ITEMS = 6;
+const BATCH_SEPARATOR = '\n\n---ZDF_BATCH_BREAK---\n\n';
+const PROMPT_VERSION = 'v6-p0';
 
 self.addEventListener('unhandledrejection', (event) => {
   console.error('[ZDFTranslate] unhandledrejection:', event?.reason || event);
@@ -93,19 +117,98 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// 默认模型配置
-const DEFAULT_MODELS = {
-  openai: 'gpt-3.5-turbo',
-  kimi: 'moonshot-v1-8k',
-  zhipu: 'glm-4-flash',
-  aliyun: 'qwen-turbo',
-  deepseek: 'deepseek-chat'
-};
-
 function ensureApiKey(key, serviceName) {
   if (!key || !String(key).trim()) {
     throw new Error(`${serviceName} API key not configured`);
   }
+}
+
+async function fetchRemoteModelsForService(service, apiKey) {
+  const key = (apiKey || '').trim();
+  if (!key) return [];
+
+  const mapToModels = (arr) => (arr || []).map(m => ({ id: m.id, name: m.name || m.id }));
+
+  const fetchers = {
+    openai: async () => {
+      const resp = await fetchWithRetry('https://api.openai.com/v1/models', { headers: { Authorization: `Bearer ${key}` } }, 'openai');
+      const data = await resp.json();
+      return mapToModels((data.data || []).filter(m => m.id && m.id.includes('gpt')));
+    },
+    openrouter: async () => {
+      const resp = await fetchWithRetry('https://openrouter.ai/api/v1/models', { headers: { Authorization: `Bearer ${key}` } }, 'openrouter');
+      const data = await resp.json();
+      return mapToModels(data.data || []);
+    },
+    kimi: async () => {
+      const resp = await fetchWithRetry('https://api.moonshot.cn/v1/models', { headers: { Authorization: `Bearer ${key}` } }, 'kimi');
+      const data = await resp.json();
+      return mapToModels(data.data || []);
+    },
+    deepseek: async () => {
+      const resp = await fetchWithRetry('https://api.deepseek.com/models', { headers: { Authorization: `Bearer ${key}` } }, 'deepseek');
+      const data = await resp.json();
+      return mapToModels(data.data || []);
+    },
+    aliyun: async () => {
+      const resp = await fetchWithRetry('https://dashscope.aliyuncs.com/compatible-mode/v1/models', { headers: { Authorization: `Bearer ${key}` } }, 'aliyun');
+      const data = await resp.json();
+      return mapToModels((data.data || []).filter(m => m.id));
+    },
+    zhipu: async () => {
+      const resp = await fetchWithRetry('https://open.bigmodel.cn/api/paas/v4/models', { headers: { Authorization: `Bearer ${key}` } }, 'zhipu');
+      const data = await resp.json();
+      return mapToModels(data.data || []);
+    },
+  };
+
+  const fn = fetchers[service];
+  if (!fn) return [];
+  return await fn();
+}
+
+async function callOpenAICompatibleTranslate({
+  serviceName,
+  url,
+  apiKey,
+  model,
+  targetLang,
+  text,
+  headers = {},
+  maxRetries = 2,
+  maxTokens,
+  temperature = 0.3,
+}) {
+  ensureApiKey(apiKey, serviceName);
+  const { system, user } = buildTranslationMessages(targetLang, text);
+
+  const payload = {
+    model,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+    temperature,
+    ...(typeof maxTokens === 'number' ? { max_tokens: maxTokens } : {}),
+  };
+
+  const response = await fetchWithRetry(
+    url,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+      body: JSON.stringify(payload),
+    },
+    serviceName,
+    maxRetries,
+  );
+
+  const data = await response.json();
+  return extractChatCompletionText(data, serviceName);
 }
 
 // ... (省略部分未变代码，保持原样逻辑) ...
@@ -133,15 +236,13 @@ function getDefaultConfig() {
     targetLang: 'zh-CN',
     sourceLang: 'auto',
     displayMode: 'bilingual',
-    translationService: 'libretranslate',
-    autoTranslateYouTube: true,
+    translationService: 'microsoft-free',
+    enableAIContentAware: false,
+    autoTranslateYouTube: false,
     autoEnableYouTubeCC: true,
     showFloatingImageExportButton: true,
     showFloatingPdfExportButton: true,
-    selectedModels: { 
-      ...DEFAULT_MODELS,
-      openrouter: 'openai/gpt-4o-mini'
-    },
+    selectedModels: { ...DEFAULT_MODELS },
     apiKeys: {},
     customServices: [],
     excludedSites: [],
@@ -178,6 +279,11 @@ chrome.runtime.onInstalled.addListener((details) => {
             needsUpdate = true;
           }
 
+          if (!cfg.translationService || cfg.translationService === 'libretranslate') {
+            cfg.translationService = 'microsoft-free';
+            needsUpdate = true;
+          }
+
           if (!cfg.selectedModels) {
             cfg.selectedModels = { ...DEFAULT_MODELS };
             needsUpdate = true;
@@ -190,6 +296,11 @@ chrome.runtime.onInstalled.addListener((details) => {
 
           if (typeof cfg.showFloatingPdfExportButton !== 'boolean') {
             cfg.showFloatingPdfExportButton = true;
+            needsUpdate = true;
+          }
+
+          if (typeof cfg.enableAIContentAware !== 'boolean') {
+            cfg.enableAIContentAware = false;
             needsUpdate = true;
           }
 
@@ -251,11 +362,17 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
         ? segments.join('\n\n')
         : info.selectionText;
 
+      const selectedService = config.translationService || 'microsoft-free';
       const result = await handleTranslation({
         text: textToTranslate,
         targetLang: config.targetLang || 'zh-CN',
         sourceLang: config.sourceLang || 'auto',
-        service: config.translationService || 'libretranslate'
+        service: selectedService,
+        model: config?.selectedModels?.[selectedService] || '',
+        enableAIContentAware: !!config.enableAIContentAware,
+        articleTitle: tab?.title || '',
+        articleSummary: '',
+        promptVersion: 'v6-p1'
       });
 
       // 优先按双换行切分（结构边界），回退到单换行
@@ -295,52 +412,21 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 // ... (Context Menu & Tab Listeners - 保持原样) ...
 
 // Kimi API - 优化请求头
-async function translateWithKimi(text, targetLang, sourceLang) {
+async function translateWithKimi(text, targetLang, sourceLang, modelOverride) {
   const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
   const apiKey = zdfConfig?.apiKeys?.kimi;
-  const model = zdfConfig?.selectedModels?.kimi || DEFAULT_MODELS.kimi;
-  
-  if (!apiKey) throw new Error('Kimi API key not configured');
-  
-  const langNames = {
-    'zh-CN': '简体中文',
-    'zh-TW': '繁體中文',
-    'en': 'English',
-    'ja': '日本語'
-  };
-  const targetLangName = langNames[targetLang] || targetLang;
+  const model = resolveModelForService(zdfConfig, 'kimi', modelOverride);
 
-  // 使用 fetchWithRetry 包装
-  const response = await fetchWithRetry(
-    'https://api.moonshot.cn/v1/chat/completions', 
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: model,
-        messages: [
-          {
-            role: 'system',
-            content: `Translate to ${targetLangName}. Only return the translated text.`
-          },
-          {
-            role: 'user',
-            content: text
-          }
-        ],
-        temperature: 0.3, 
-        max_tokens: 1000 // 限制 token 避免过长生成
-      })
-    },
-    'kimi',
-    2 // 减少重试次数
-  );
-  
-  const data = await response.json();
-  return data.choices[0].message.content.trim();
+  return await callOpenAICompatibleTranslate({
+    serviceName: 'kimi',
+    url: 'https://api.moonshot.cn/v1/chat/completions',
+    apiKey,
+    model,
+    targetLang,
+    text,
+    maxRetries: 2,
+    maxTokens: 1000,
+  });
 }
 
 // ... (其他 API 函数保持原样，仅复用 fetchWithRetry 优化) ...
@@ -348,7 +434,7 @@ async function translateWithKimi(text, targetLang, sourceLang) {
 // 为了完整性，这里包含核心的消息监听和处理逻辑
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'translate') {
-    handleTranslation(request)
+    enqueueTranslationRequest(request)
       .then(result => sendResponse({ translatedText: result }))
       .catch(error => sendResponse({ error: error.message }));
     return true;
@@ -371,8 +457,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
   
   if (request.action === 'getModels') {
-      // 模拟返回
-      sendResponse({ models: [] });
+      (async () => {
+        try {
+          const models = await fetchRemoteModelsForService(request.service, request.apiKey);
+          sendResponse({ models });
+        } catch (error) {
+          sendResponse({ models: [], error: error?.message || '获取模型失败' });
+        }
+      })();
       return true;
   }
   
@@ -401,144 +493,244 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   return true;
 });
 
-// 重构 handleTranslation 以支持所有服务
-async function handleTranslation(request) {
+function buildTranslationCacheKey(request) {
   const { text, targetLang, sourceLang, service } = request;
-  const cacheKey = `${text}_${targetLang}_${sourceLang}`;
-  
-  if (TRANSLATION_CACHE.has(cacheKey)) {
-    return TRANSLATION_CACHE.get(cacheKey);
-  }
+  const model = request.model || '';
+  const promptVersion = request.promptVersion || PROMPT_VERSION;
+  const articleTitle = request.articleTitle || '';
+  const articleSummary = request.articleSummary || '';
+  const awareTag = request.enableAIContentAware ? 'aware:1' : 'aware:0';
+  return `${service || 'microsoft-free'}|${model}|${sourceLang || 'auto'}|${targetLang || 'zh-CN'}|${promptVersion}|${awareTag}|${articleTitle}|${articleSummary}|${text}`;
+}
 
-  let result;
-  // 直接根据 service 分发，不一个个写 switch 了，保持逻辑清晰
-  if (service === 'kimi') {
-      result = await translateWithKimi(text, targetLang, sourceLang);
-  } else if (service === 'aliyun') {
-      result = await translateWithAliyun(text, targetLang, sourceLang);
-  } else if (service === 'zhipu') {
-      result = await translateWithZhipu(text, targetLang, sourceLang);
-  } else if (service === 'openai') {
-      result = await translateWithOpenAI(text, targetLang, sourceLang);
-  } else if (service === 'deepseek') {
-      result = await translateWithDeepSeek(text, targetLang, sourceLang);
-  } else if (service === 'google') {
-      result = await translateWithGoogle(text, targetLang, sourceLang);
-  } else if (service === 'deepl') {
-      result = await translateWithDeepL(text, targetLang, sourceLang);
-  } else if (service === 'openrouter') {
-      result = await translateWithOpenRouter(text, targetLang, sourceLang);
-  } else if (service?.startsWith('custom_')) {
-      result = await translateWithCustomService(service, text, targetLang, sourceLang);
-  } else {
-      // 默认 libretranslate
-      result = await translateWithLibreTranslate(text, targetLang, sourceLang);
-  }
-
+function setTranslationCache(key, value) {
   if (TRANSLATION_CACHE.size >= CACHE_MAX_SIZE) {
     const firstKey = TRANSLATION_CACHE.keys().next().value;
     TRANSLATION_CACHE.delete(firstKey);
   }
-  TRANSLATION_CACHE.set(cacheKey, result);
+  TRANSLATION_CACHE.set(key, value);
+}
+
+function buildContextAwareText(request) {
+  const { text, service, enableAIContentAware, articleTitle, articleSummary } = request;
+  if (!enableAIContentAware || !isLLMService(service)) {
+    return text;
+  }
+  const title = (articleTitle || '').trim();
+  const summary = (articleSummary || '').trim();
+  if (!title && !summary) {
+    return text;
+  }
+  return [
+    'Context for translation:',
+    title ? `Title: ${title}` : '',
+    summary ? `Summary: ${summary}` : '',
+    '',
+    'Text to translate:',
+    text,
+  ].filter(Boolean).join('\n');
+}
+
+const TRANSLATION_HANDLER_MAP = {
+  'microsoft-free': translateWithMicrosoftFree,
+  'google-free': translateWithGoogleFree,
+  kimi: translateWithKimi,
+  aliyun: translateWithAliyun,
+  zhipu: translateWithZhipu,
+  openai: translateWithOpenAI,
+  deepseek: translateWithDeepSeek,
+  google: translateWithGoogle,
+  deepl: translateWithDeepL,
+  openrouter: translateWithOpenRouter,
+  libretranslate: translateWithLibreTranslate,
+};
+
+async function dispatchSingleTranslation(request) {
+  const { targetLang, sourceLang, service } = request;
+  const text = buildContextAwareText(request);
+
+  if (isCustomService(service)) {
+    return await translateWithCustomService(service, text, targetLang, sourceLang);
+  }
+
+  const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
+  const resolvedModel = resolveModelForService(zdfConfig, service, request.model);
+  const handler = TRANSLATION_HANDLER_MAP[service] || translateWithMicrosoftFree;
+  return await handler(text, targetLang, sourceLang, resolvedModel);
+}
+
+async function handleTranslation(request) {
+  const cacheKey = buildTranslationCacheKey(request);
+  if (TRANSLATION_CACHE.has(cacheKey)) {
+    return TRANSLATION_CACHE.get(cacheKey);
+  }
+  const result = await dispatchSingleTranslation(request);
+  setTranslationCache(cacheKey, result);
   return result;
 }
 
+function getBatchGroupKey(request) {
+  const { targetLang, sourceLang, service } = request;
+  const model = request.model || '';
+  const promptVersion = request.promptVersion || PROMPT_VERSION;
+  const awareTag = request.enableAIContentAware ? 'aware:1' : 'aware:0';
+  return `${service || 'microsoft-free'}|${sourceLang || 'auto'}|${targetLang || 'zh-CN'}|${model}|${promptVersion}|${awareTag}`;
+}
+
+function flushTranslationBatch(groupKey) {
+  const queue = translationBatchQueues.get(groupKey);
+  if (!queue || !queue.items.length) {
+    translationBatchQueues.delete(groupKey);
+    return;
+  }
+
+  const items = queue.items.splice(0, queue.items.length);
+  translationBatchQueues.delete(groupKey);
+
+  (async () => {
+    if (items.length === 1) {
+      const item = items[0];
+      try {
+        const result = await handleTranslation(item.request);
+        item.resolve(result);
+      } catch (error) {
+        item.reject(error);
+      }
+      return;
+    }
+
+    const combinedText = items.map(i => i.request.text).join(BATCH_SEPARATOR);
+    const first = items[0].request;
+    const batchRequest = { ...first, text: combinedText };
+
+    try {
+      const combinedResult = await dispatchSingleTranslation(batchRequest);
+      const parts = String(combinedResult || '').split(BATCH_SEPARATOR);
+      if (parts.length === items.length) {
+        items.forEach((item, idx) => {
+          const text = (parts[idx] ?? '').trim();
+          const cacheKey = buildTranslationCacheKey(item.request);
+          setTranslationCache(cacheKey, text);
+          item.resolve(text);
+        });
+        return;
+      }
+      throw new Error(`批量返回段落数不匹配: expected ${items.length}, got ${parts.length}`);
+    } catch (batchError) {
+      // 批处理失败时自动回退逐条翻译
+      for (const item of items) {
+        try {
+          const result = await handleTranslation(item.request);
+          item.resolve(result);
+        } catch (error) {
+          item.reject(error);
+        }
+      }
+    }
+  })().catch((error) => {
+    items.forEach(item => item.reject(error));
+  });
+}
+
+function enqueueTranslationRequest(request) {
+  const cacheKey = buildTranslationCacheKey(request);
+  if (TRANSLATION_CACHE.has(cacheKey)) {
+    return Promise.resolve(TRANSLATION_CACHE.get(cacheKey));
+  }
+
+  const groupKey = getBatchGroupKey(request);
+  let queue = translationBatchQueues.get(groupKey);
+  if (!queue) {
+    queue = { items: [], timer: null };
+    translationBatchQueues.set(groupKey, queue);
+  }
+
+  return new Promise((resolve, reject) => {
+    queue.items.push({ request, resolve, reject });
+
+    if (queue.items.length >= MAX_BATCH_ITEMS) {
+      if (queue.timer) clearTimeout(queue.timer);
+      queue.timer = null;
+      flushTranslationBatch(groupKey);
+      return;
+    }
+
+    if (!queue.timer) {
+      queue.timer = setTimeout(() => {
+        queue.timer = null;
+        flushTranslationBatch(groupKey);
+      }, BATCH_DELAY_MS);
+    }
+  });
+}
+
 // 补全其他服务的简要实现 (基于之前的代码)
-async function translateWithAliyun(text, targetLang, sourceLang) {
+async function translateWithAliyun(text, targetLang, sourceLang, modelOverride) {
     const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
     const apiKey = zdfConfig?.apiKeys?.aliyun;
-    const model = zdfConfig?.selectedModels?.aliyun || 'qwen-turbo';
-    ensureApiKey(apiKey, 'Aliyun');
-    
-    // Aliyun OpenAI Compatible
-    const response = await fetchWithRetry(
-        'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
-        {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: model,
-            messages: [{ role: 'user', content: `Translate to ${targetLang}:\n${text}` }]
-          })
-        },
-        'aliyun'
-    );
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content?.trim() || 'Translation failed';
+    const model = resolveModelForService(zdfConfig, 'aliyun', modelOverride);
+
+    return await callOpenAICompatibleTranslate({
+      serviceName: 'aliyun',
+      url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+      apiKey,
+      model,
+      targetLang,
+      text,
+    });
 }
 
-async function translateWithZhipu(text, targetLang, sourceLang) {
+async function translateWithZhipu(text, targetLang, sourceLang, modelOverride) {
     const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
     const apiKey = zdfConfig?.apiKeys?.zhipu;
-    const model = zdfConfig?.selectedModels?.zhipu || 'glm-4-flash';
-    ensureApiKey(apiKey, 'Zhipu');
+    const model = resolveModelForService(zdfConfig, 'zhipu', modelOverride);
 
-    const response = await fetchWithRetry(
-        'https://open.bigmodel.cn/api/paas/v4/chat/completions',
-        {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: model,
-            messages: [{ role: 'user', content: `Translate this to ${targetLang}, only output result:\n${text}` }]
-          })
-        },
-        'zhipu'
-    );
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content?.trim();
+    return await callOpenAICompatibleTranslate({
+      serviceName: 'zhipu',
+      url: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+      apiKey,
+      model,
+      targetLang,
+      text,
+    });
 }
 
-async function translateWithOpenAI(text, targetLang, sourceLang) {
+async function translateWithOpenAI(text, targetLang, sourceLang, modelOverride) {
     const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
     const apiKey = zdfConfig?.apiKeys?.openai;
-    const model = zdfConfig?.selectedModels?.openai || 'gpt-3.5-turbo';
-    ensureApiKey(apiKey, 'OpenAI');
+    const model = resolveModelForService(zdfConfig, 'openai', modelOverride);
 
-    const response = await fetchWithRetry(
-        'https://api.openai.com/v1/chat/completions',
-        {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: model,
-                messages: [{ role: 'system', content: `Translate to ${targetLang}` }, { role: 'user', content: text }]
-            })
-        },
-        'openai'
-    );
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content?.trim();
+    return await callOpenAICompatibleTranslate({
+      serviceName: 'openai',
+      url: 'https://api.openai.com/v1/chat/completions',
+      apiKey,
+      model,
+      targetLang,
+      text,
+    });
 }
 
-async function translateWithDeepSeek(text, targetLang, sourceLang) {
+async function translateWithDeepSeek(text, targetLang, sourceLang, modelOverride) {
     const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
     const apiKey = zdfConfig?.apiKeys?.deepseek;
-    const model = zdfConfig?.selectedModels?.deepseek || 'deepseek-chat';
-    ensureApiKey(apiKey, 'DeepSeek');
+    const model = resolveModelForService(zdfConfig, 'deepseek', modelOverride);
 
-    const response = await fetchWithRetry(
-        'https://api.deepseek.com/chat/completions',
-        {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                model: model,
-                messages: [{ role: 'user', content: `Translate to ${targetLang}:\n${text}` }]
-            })
-        },
-        'deepseek'
-    );
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content?.trim();
+    return await callOpenAICompatibleTranslate({
+      serviceName: 'deepseek',
+      url: 'https://api.deepseek.com/chat/completions',
+      apiKey,
+      model,
+      targetLang,
+      text,
+    });
 }
 
 async function translateWithGoogle(text, targetLang, sourceLang) {
    const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
    const apiKey = zdfConfig?.apiKeys?.google;
-   
+
    ensureApiKey(apiKey, 'Google');
-   
+
    const response = await fetchWithRetry(
        `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`,
        {
@@ -553,6 +745,68 @@ async function translateWithGoogle(text, targetLang, sourceLang) {
        throw new Error('Google API 返回格式错误');
    }
    return data.data.translations[0].translatedText;
+}
+
+async function translateWithGoogleFree(text, targetLang, sourceLang) {
+  const sl = sourceLang && sourceLang !== 'auto' ? sourceLang : 'auto';
+  const tl = targetLang || 'zh-CN';
+  const params = new URLSearchParams({
+    client: 'gtx',
+    sl,
+    tl,
+    dt: 't',
+    q: text,
+  });
+
+  const response = await fetchWithRetry(
+    `https://translate.googleapis.com/translate_a/single?${params.toString()}`,
+    { method: 'GET' },
+    'google-free',
+  );
+
+  const data = await response.json();
+  if (!Array.isArray(data) || !Array.isArray(data[0])) {
+    throw new Error('Google 免费翻译返回格式错误');
+  }
+
+  return data[0]
+    .filter(Array.isArray)
+    .map(chunk => chunk[0])
+    .filter(Boolean)
+    .join('');
+}
+
+async function translateWithMicrosoftFree(text, targetLang, sourceLang) {
+  const tokenResp = await fetchWithRetry(
+    'https://edge.microsoft.com/translate/auth',
+    { method: 'GET' },
+    'microsoft-free',
+  );
+  const token = (await tokenResp.text()).trim();
+  if (!token) throw new Error('Microsoft 免费翻译 token 获取失败');
+
+  const from = sourceLang && sourceLang !== 'auto' ? sourceLang : '';
+  const to = targetLang || 'zh-CN';
+
+  const response = await fetchWithRetry(
+    `https://api-edge.cognitive.microsofttranslator.com/translate?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&api-version=3.0&includeSentenceLength=true&textType=html`,
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Ocp-Apim-Subscription-Key': token,
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify([{ Text: text }]),
+    },
+    'microsoft-free',
+  );
+
+  const data = await response.json();
+  if (!Array.isArray(data) || !data[0]?.translations?.[0]?.text) {
+    throw new Error('Microsoft 免费翻译返回格式错误');
+  }
+  return data[0].translations[0].text;
 }
 
 async function translateWithDeepL(text, targetLang, sourceLang) {
@@ -614,61 +868,25 @@ async function translateWithLibreTranslate(text, targetLang, sourceLang) {
 }
 
 // OpenRouter 翻译
-async function translateWithOpenRouter(text, targetLang, sourceLang) {
+async function translateWithOpenRouter(text, targetLang, sourceLang, modelOverride) {
     const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
     const apiKey = zdfConfig?.apiKeys?.openrouter;
-    const model = zdfConfig?.selectedModels?.openrouter || 'openai/gpt-4o-mini';
-    
-    if (!apiKey) throw new Error('OpenRouter API key not configured');
-    
-    const langNames = {
-        'zh-CN': '简体中文',
-        'zh-TW': '繁體中文',
-        'en': 'English',
-        'ja': '日本語',
-        'ko': '한국어',
-        'fr': 'Français',
-        'de': 'Deutsch',
-        'es': 'Español',
-        'ru': 'Русский'
-    };
-    const targetLangName = langNames[targetLang] || targetLang;
+    const model = resolveModelForService(zdfConfig, 'openrouter', modelOverride);
 
     try {
-        const response = await fetchWithRetry(
-            'https://openrouter.ai/api/v1/chat/completions',
-            {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`,
-                    'Content-Type': 'application/json',
-                    'HTTP-Referer': 'https://github.com/zdf-translate',
-                    'X-Title': 'ZDFTranslate'
-                },
-                body: JSON.stringify({
-                    model: model,
-                    messages: [
-                        {
-                            role: 'system',
-                            content: `You are a professional translator. Translate the following text to ${targetLangName}. Only return the translated text, no explanations.`
-                        },
-                        {
-                            role: 'user',
-                            content: text
-                        }
-                    ],
-                    temperature: 0.3,
-                    max_tokens: 2000
-                })
-            },
-            'openrouter'
-        );
-        
-        const data = await response.json();
-        if (!data.choices?.[0]?.message?.content) {
-            throw new Error('OpenRouter API 返回格式错误: ' + JSON.stringify(data));
-        }
-        return data.choices[0].message.content.trim();
+        return await callOpenAICompatibleTranslate({
+          serviceName: 'openrouter',
+          url: 'https://openrouter.ai/api/v1/chat/completions',
+          apiKey,
+          model,
+          targetLang,
+          text,
+          maxTokens: 2000,
+          headers: {
+            'HTTP-Referer': 'https://github.com/zdf-translate',
+            'X-Title': 'ZDFTranslate',
+          },
+        });
     } catch (error) {
         // 处理 OpenRouter 特定的错误
         if (error.message?.includes('404') && error.message?.includes('data policy')) {
@@ -698,18 +916,7 @@ async function translateWithCustomService(serviceId, text, targetLang, sourceLan
         throw new Error(`自定义服务 ${customService.name} 未配置 API Base URL`);
     }
     
-    const langNames = {
-        'zh-CN': '简体中文',
-        'zh-TW': '繁體中文',
-        'en': 'English',
-        'ja': '日本語',
-        'ko': '한국어',
-        'fr': 'Français',
-        'de': 'Deutsch',
-        'es': 'Español',
-        'ru': 'Русский'
-    };
-    const targetLangName = langNames[targetLang] || targetLang;
+    const targetLangName = resolveTargetLangName(targetLang);
     
     // 规范化 URL：去除首尾空格，去除尾部斜杠
     let baseUrl = customService.apiBaseUrl.trim();
@@ -751,37 +958,14 @@ async function translateWithCustomService(serviceId, text, targetLang, sourceLan
         return data.content[0].text.trim();
     } else {
         // OpenAI 兼容模式 (默认)
-        const response = await fetchWithRetry(
-            `${baseUrl}/chat/completions`,
-            {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${customService.apiKey}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    model: model,
-                    messages: [
-                        {
-                            role: 'system',
-                            content: `You are a professional translator. Translate the following text to ${targetLangName}. Only return the translated text, no explanations.`
-                        },
-                        {
-                            role: 'user',
-                            content: text
-                        }
-                    ],
-                    temperature: 0.3,
-                    max_tokens: 2000
-                })
-            },
-            'custom'
-        );
-        
-        const data = await response.json();
-        if (!data.choices?.[0]?.message?.content) {
-            throw new Error('OpenAI API 返回格式错误: ' + JSON.stringify(data));
-        }
-        return data.choices[0].message.content.trim();
+        return await callOpenAICompatibleTranslate({
+          serviceName: 'custom',
+          url: `${baseUrl}/chat/completions`,
+          apiKey: customService.apiKey,
+          model,
+          targetLang,
+          text,
+          maxTokens: 2000,
+        });
     }
 }

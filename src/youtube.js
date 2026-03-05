@@ -12,12 +12,13 @@
   let ccRetryTimer = null;
   let ccWatchdogTimer = null;
   let lastSubtitleSeenAt = 0;
+  let ytToggleBtn = null;
+  let ytToggleRetryTimer = null;
 
   let config = {
     targetLang: 'zh-CN',
     translationService: 'libretranslate', 
     apiKeys: {},
-    autoTranslateYouTube: true,
     autoEnableYouTubeCC: true,
     style: {
       translationColor: '#FFD700',
@@ -32,12 +33,8 @@
           config.style.translationColor = '#FFD700'; // Default gold
       }
       
-      if (config.autoTranslateYouTube !== false) {
-          startYouTubeTranslation();
-      }
-    } else {
-      startYouTubeTranslation();
     }
+    ensureYouTubeToggleButton();
   });
 
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -47,16 +44,12 @@
       } else {
         stopYouTubeTranslation();
       }
+      updateYouTubeToggleButtonState();
     } else if (request.action === 'updateConfig') {
       config = { ...config, ...request.config };
-      if (config.autoTranslateYouTube !== false && !translationActive) {
-        startYouTubeTranslation();
-      } else if (config.autoTranslateYouTube === false && translationActive) {
-        stopYouTubeTranslation();
-      }
-
+      ensureYouTubeToggleButton();
       if (translationActive) {
-        if (config.autoTranslateYouTube === false) {
+        if (config.autoEnableYouTubeCC === false) {
           if (ccRetryTimer) {
             clearTimeout(ccRetryTimer);
             ccRetryTimer = null;
@@ -81,6 +74,55 @@
     }
   });
 
+  function updateYouTubeToggleButtonState() {
+    if (!ytToggleBtn) return;
+    ytToggleBtn.setAttribute('aria-pressed', translationActive ? 'true' : 'false');
+    ytToggleBtn.classList.toggle('zdf-yt-toggle-active', !!translationActive);
+    ytToggleBtn.title = translationActive ? '关闭双语字幕' : '开启双语字幕';
+  }
+
+  function ensureYouTubeToggleButton(retry = 0) {
+    if (!location.href.includes('youtube.com/watch')) return;
+
+    const controls = document.querySelector('.ytp-right-controls');
+    if (!controls) {
+      if (ytToggleRetryTimer) clearTimeout(ytToggleRetryTimer);
+      if (retry < 20) {
+        ytToggleRetryTimer = setTimeout(() => ensureYouTubeToggleButton(retry + 1), 500);
+      }
+      return;
+    }
+
+    if (ytToggleBtn && controls.contains(ytToggleBtn)) {
+      updateYouTubeToggleButtonState();
+      return;
+    }
+
+    const btn = document.createElement('button');
+    btn.className = 'ytp-button zdf-yt-toggle-btn';
+    btn.type = 'button';
+    btn.setAttribute('aria-label', '切换双语字幕');
+    btn.innerHTML = `
+      <svg viewBox="0 0 36 36" class="zdf-yt-toggle-icon" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="6" y="8" width="24" height="20" rx="4.5" stroke="currentColor" stroke-width="2.2"/>
+        <path d="M12 14.2H24L12 21.8H24" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>`;
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (translationActive) {
+        stopYouTubeTranslation();
+      } else {
+        startYouTubeTranslation();
+      }
+      updateYouTubeToggleButtonState();
+    });
+
+    controls.insertBefore(btn, controls.firstChild || null);
+    ytToggleBtn = btn;
+    updateYouTubeToggleButtonState();
+  }
+
   function startYouTubeTranslation() {
     if (translationActive) return;
     translationActive = true;
@@ -88,13 +130,14 @@
     injectStyles();
     createOverlay();
 
-    // 内置策略：只要开启自动双语字幕，就自动尝试开启CC并切英文轨
-    if (config.autoTranslateYouTube !== false) {
+    // 开启双语字幕时，自动尝试开启CC并切英文轨（可通过 autoEnableYouTubeCC 关闭）
+    if (config.autoEnableYouTubeCC !== false) {
       scheduleEnsureCaptions(0);
       startCaptionWatchdog();
     }
 
     observeSubtitles();
+    updateYouTubeToggleButtonState();
   }
 
   function stopYouTubeTranslation() {
@@ -115,6 +158,7 @@
         currentOverlay.remove();
         currentOverlay = null;
     }
+    updateYouTubeToggleButtonState();
   }
 
   function createOverlay() {
@@ -140,7 +184,7 @@
   }
 
   function ensureCaptionsWithRetry(attempt) {
-    if (!translationActive || config.autoTranslateYouTube === false) return;
+    if (!translationActive || config.autoEnableYouTubeCC === false) return;
     if (attempt > 15) return;
 
     const player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
@@ -203,7 +247,7 @@
     if (ccWatchdogTimer) clearInterval(ccWatchdogTimer);
 
     ccWatchdogTimer = setInterval(() => {
-      if (!translationActive || config.autoTranslateYouTube === false) return;
+      if (!translationActive || config.autoEnableYouTubeCC === false) return;
 
       // 15 秒内没抓到字幕，认为可能没成功自动开启，再尝试一次
       const stale = Date.now() - lastSubtitleSeenAt > 15000;
@@ -237,7 +281,8 @@
   let updateTimeout;
   function updateOverlayContent() {
       if (updateTimeout) clearTimeout(updateTimeout);
-      updateTimeout = setTimeout(performUpdate, 50);
+      // 合并刷新，减少字幕抖动/闪烁
+      updateTimeout = setTimeout(performUpdate, 120);
   }
 
   async function performUpdate() {
@@ -299,13 +344,19 @@
                 action: 'translate',
                 text: cleanText,
                 targetLang: config.targetLang,
-                service: config.translationService 
+                sourceLang: config.sourceLang || 'auto',
+                service: config.translationService,
+                model: config?.selectedModels?.[config.translationService] || '',
+                enableAIContentAware: !!config.enableAIContentAware,
+                articleTitle: document.title || '',
+                articleSummary: '',
+                promptVersion: 'v6-p1'
             }, resolve);
         });
-        
-        if (response && response.translatedText) {
-          translationCache.set(cacheKey, response.translatedText);
-          return response.translatedText;
+
+        if (response && Object.prototype.hasOwnProperty.call(response, 'translatedText')) {
+          translationCache.set(cacheKey, response.translatedText || '');
+          return response.translatedText || '';
       }
       } catch (e) {
           console.error('[ZDFTranslate] Translation error:', e);
@@ -359,8 +410,8 @@
         bottom: 8% !important; 
         left: 50% !important;
         transform: translateX(-50%) !important;
-        width: 85% !important;
-        max-width: 1100px !important;
+        width: 80% !important;
+        max-width: 980px !important;
         text-align: center !important;
         pointer-events: none !important;
         z-index: 2147483647 !important;
@@ -371,40 +422,70 @@
         gap: 0px !important;
       }
 
-      /* Original Text Styling - White, ~28px */
+      /* Original Text Styling */
       .zdf-movie-original {
         font-family: 'Roboto', 'Arial', sans-serif !important;
-        font-size: 1.75em !important;
+        font-size: 1.45em !important;
         font-weight: 500 !important;
         color: #FFFFFF !important;
         text-shadow: 
           0px 0px 8px rgba(0, 0, 0, 1),
           0px 0px 10px rgba(0, 0, 0, 1),
           2px 2px 5px rgba(0, 0, 0, 0.95);
-        background: rgba(0, 0, 0, 0.65) !important;
-        padding: 6px 16px !important;
+        background: rgba(0, 0, 0, 0.55) !important;
+        padding: 6px 14px !important;
         border-radius: 8px !important;
         display: block !important;
-        line-height: 1.3 !important;
-        margin-bottom: 8px !important;
+        line-height: 1.35 !important;
+        margin-bottom: 6px !important;
       }
 
-      /* Translated Text Styling - Gold, ~42px, MASSIVE & BOLD */
+      /* Translated Text Styling - balanced readability */
       .zdf-movie-translated {
         font-family: 'Roboto', 'Noto Sans CJK SC', sans-serif !important;
-        font-size: 2.6em !important;
-        font-weight: 800 !important;
+        font-size: 1.8em !important;
+        font-weight: 700 !important;
         color: #FFD700 !important;
         text-shadow: 
           0px 0px 10px rgba(0, 0, 0, 1),
           0px 0px 12px rgba(0, 0, 0, 1),
-          3px 3px 6px rgba(0, 0, 0, 1),
-          0px 0px 20px rgba(255, 215, 0, 0.3);
-        background: rgba(0, 0, 0, 0.7) !important;
-        padding: 8px 20px !important;
+          2px 2px 5px rgba(0, 0, 0, 1),
+          0px 0px 16px rgba(255, 215, 0, 0.25);
+        background: rgba(0, 0, 0, 0.5) !important;
+        padding: 7px 16px !important;
         border-radius: 8px !important;
         display: block !important;
-        line-height: 1.3 !important;
+        line-height: 1.35 !important;
+      }
+
+      .zdf-yt-toggle-btn {
+        width: 56px;
+        height: 56px;
+        padding: 0 !important;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        color: rgba(255,255,255,0.92);
+      }
+
+      .zdf-yt-toggle-icon {
+        width: 30px;
+        height: 30px;
+        opacity: 0.98;
+        display: block;
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+      }
+
+      .zdf-yt-toggle-btn:hover {
+        color: #fff;
+      }
+
+      .zdf-yt-toggle-btn.zdf-yt-toggle-active {
+        color: #3ea6ff;
       }
     `;
     document.head.appendChild(style);
@@ -416,6 +497,8 @@
     if (url !== lastUrl) {
       lastUrl = url;
       if (url.includes('youtube.com/watch')) {
+          ensureYouTubeToggleButton();
+
           if (currentOverlay) {
               currentOverlay.innerHTML = '';
               currentOverlay.style.display = 'none';
@@ -423,16 +506,10 @@
           }
           lastSubtitleSeenAt = 0;
 
-          if (config.autoTranslateYouTube !== false) {
-            if (!translationActive) {
-              startYouTubeTranslation();
-            } else {
-              observeSubtitles();
-              if (config.autoTranslateYouTube !== false) {
-                scheduleEnsureCaptions(0, 500);
-                startCaptionWatchdog();
-              }
-            }
+      } else {
+          if (ytToggleBtn) {
+            ytToggleBtn.remove();
+            ytToggleBtn = null;
           }
       }
     }
