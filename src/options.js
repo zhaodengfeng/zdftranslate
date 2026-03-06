@@ -922,10 +922,36 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderModelSelectWithIcons(service, selectElement);
   }
 
+  async function fetchModelsViaBackground(service, apiKey, timeoutMs = 30000) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('background getModels timeout')), timeoutMs);
+      chrome.runtime.sendMessage({ action: 'getModels', service, apiKey }, (response) => {
+        clearTimeout(timer);
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (response?.error) {
+          reject(new Error(response.error));
+          return;
+        }
+        resolve(Array.isArray(response?.models) ? response.models : []);
+      });
+    });
+  }
+
   // 从远程获取模型列表（返回模型数组，不直接渲染）
   async function fetchRemoteModelsWithFallback(service, apiKey) {
     if (!apiKey || !apiKey.trim()) {
       return [];
+    }
+
+    // 优先走 background（与翻译链路同源，更稳定）
+    try {
+      const fromBg = await fetchModelsViaBackground(service, apiKey);
+      if (fromBg.length > 0) return fromBg;
+    } catch (e) {
+      console.warn(`background 获取 ${service} 模型失败，回退前端直连:`, e?.message || e);
     }
 
     try {
@@ -983,7 +1009,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
 
-  async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 12000) {
+  async function fetchJsonWithTimeout(url, options = {}, timeoutMs = 20000) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {

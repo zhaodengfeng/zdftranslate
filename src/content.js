@@ -281,8 +281,24 @@
     if (['microsoft-free', 'google-free', 'libretranslate'].includes(service)) {
       return { batchSize: 3, concurrency: 2 };
     }
-    // API Key 服务可稍微激进，提升速度
-    return { batchSize: 4, concurrency: 3 };
+
+    // 阿里云限流较严格：单并发最稳，避免 429
+    if (service === 'aliyun') {
+      return { batchSize: 1, concurrency: 1 };
+    }
+
+    // Kimi 提速策略：小批量合并，显著减少请求次数
+    if (service === 'kimi') {
+      return { batchSize: 4, concurrency: 2 };
+    }
+
+    // 其他 LLM/API 服务优先“边翻边出”，避免长时间无反馈后整页突变
+    if (['zhipu', 'openai', 'deepseek', 'openrouter', 'google', 'deepl'].includes(service) || String(service || '').startsWith('custom_')) {
+      return { batchSize: 1, concurrency: 2 };
+    }
+
+    // 默认
+    return { batchSize: 2, concurrency: 2 };
   }
   
   // 带并发控制的批量翻译
@@ -348,15 +364,27 @@
       });
     } catch (error) {
       console.error(`[ZDFTranslate] 批次 ${batchIndex} 失败:`, error.message);
+      showInlineErrorToast(error?.message || '批量翻译失败');
       // 批量失败时回退到单段落翻译
       elements.forEach(el => {
         el.dataset.zdfTranslated = '';
       });
-      // 串行重试，避免触发限流
-      for (const el of elements) {
-        if (!translationActive) break;
-        await translateParagraph(el);
-        await sleep(100);
+      // 回退重试：Kimi 用轻并发提速，其他服务保持串行稳态
+      if (config.translationService === 'kimi') {
+        const chunks = [];
+        for (let i = 0; i < elements.length; i += 2) {
+          chunks.push(elements.slice(i, i + 2));
+        }
+        for (const chunk of chunks) {
+          if (!translationActive) break;
+          await Promise.allSettled(chunk.map(el => translateParagraph(el)));
+        }
+      } else {
+        for (const el of elements) {
+          if (!translationActive) break;
+          await translateParagraph(el);
+          await sleep(100);
+        }
       }
     }
   }
@@ -365,22 +393,55 @@
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
+
+  let lastErrorToastAt = 0;
+  function showInlineErrorToast(message) {
+    const now = Date.now();
+    if (now - lastErrorToastAt < 3000) return;
+    lastErrorToastAt = now;
+
+    let toast = document.getElementById('zdf-inline-error-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'zdf-inline-error-toast';
+      toast.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483647;background:#ef4444;color:#fff;padding:10px 12px;border-radius:10px;font-size:13px;max-width:320px;box-shadow:0 8px 24px rgba(0,0,0,.24);';
+      document.documentElement.appendChild(toast);
+    }
+    toast.textContent = `翻译失败：${message || '请检查 API 服务设置'}`;
+    toast.style.display = 'block';
+    clearTimeout(showInlineErrorToast._timer);
+    showInlineErrorToast._timer = setTimeout(() => {
+      if (toast) toast.style.display = 'none';
+    }, 3500);
+  }
   
   // 判断是否应该翻译
   function shouldTranslate(element) {
     // 已翻译的跳过
     if (element.dataset.zdfTranslated) return false;
-    
+
+    // 导航/页眉/页脚/侧栏等区域不翻译，避免版式错位
+    if (element.closest('nav, header, footer, aside, [role="navigation"], [role="banner"], .nav, .navbar, .menu, .breadcrumb, .toolbar')) {
+      return false;
+    }
+
     // 代码块不翻译
     if (element.closest('pre, code')) return false;
-    
-    // 文本太短不翻译
+
     const text = element.innerText?.trim();
+
+    // 文本太短不翻译
     if (!text || text.length < 10) return false;
-    
+
+    // 常见栏目标签/kicker 不翻译（仅按 class 判断，避免误伤正文标题）
+    const cls = `${element.className || ''}`.toLowerCase();
+    if (/(kicker|eyebrow|overline|label|tag|section-name|category)/.test(cls)) {
+      return false;
+    }
+
     // 检测是否已经是目标语言（简化版，可用 franc 库改进）
     if (isTargetLanguage(text)) return false;
-    
+
     return true;
   }
 
@@ -412,12 +473,27 @@
       }
     } catch (error) {
       console.error('ZDFTranslate: 翻译失败 -', error.message);
+      showInlineErrorToast(error?.message || '段落翻译失败');
       element.dataset.zdfTranslated = '';
+    }
+  }
+
+  function cleanupExistingTranslation(element) {
+    // 移除同一节点内历史翻译容器，避免重试时重复插入
+    element.querySelectorAll(':scope > .zdf-translation-container').forEach((node) => node.remove());
+
+    // 若节点内容已被翻译容器包裹，先恢复原始 HTML 再重新插入
+    if (element.dataset.zdfOriginalHtml) {
+      const hasWrapped = element.querySelector('.zdf-translation-container');
+      if (hasWrapped) {
+        element.innerHTML = element.dataset.zdfOriginalHtml;
+      }
     }
   }
 
   // 纯译文模式
   function insertReplaceMode(element, original, translated) {
+    cleanupExistingTranslation(element);
     // 保存原始HTML - 确保只保存一次
     if (!element.dataset.zdfOriginalHtml) {
       element.dataset.zdfOriginalHtml = element.innerHTML;
@@ -464,6 +540,7 @@
 
   // 双语对照模式
   function insertBilingual(element, original, translated) {
+    cleanupExistingTranslation(element);
     // 保存原始HTML - 确保只保存一次
     if (!element.dataset.zdfOriginalHtml) {
       element.dataset.zdfOriginalHtml = element.innerHTML;

@@ -7,14 +7,118 @@ try {
 }
 
 const {
-  DEFAULT_MODELS,
-  isCustomService,
-  isLLMService,
-  resolveModelForService,
-  resolveTargetLangName,
-  buildTranslationMessages,
-  extractChatCompletionText,
+  DEFAULT_MODELS: providerDefaultModels,
+  isCustomService: providerIsCustomService,
+  isLLMService: providerIsLLMService,
+  resolveModelForService: providerResolveModelForService,
+  resolveTargetLangName: providerResolveTargetLangName,
+  buildTranslationMessages: providerBuildTranslationMessages,
+  extractChatCompletionText: providerExtractChatCompletionText,
 } = self.ZDFProviders || {};
+
+const DEFAULT_MODELS = providerDefaultModels || {
+  openai: 'gpt-3.5-turbo',
+  kimi: 'moonshot-v1-8k',
+  zhipu: 'glm-4-flash',
+  aliyun: 'qwen-turbo',
+  deepseek: 'deepseek-chat',
+  openrouter: 'openai/gpt-4o-mini',
+};
+
+function isCustomService(service) {
+  if (typeof providerIsCustomService === 'function') return providerIsCustomService(service);
+  return String(service || '').startsWith('custom_');
+}
+
+function isLLMService(service) {
+  if (typeof providerIsLLMService === 'function') return providerIsLLMService(service);
+  return ['kimi', 'aliyun', 'zhipu', 'openai', 'deepseek', 'openrouter'].includes(service) || isCustomService(service);
+}
+
+function resolveTargetLangName(targetLang) {
+  if (typeof providerResolveTargetLangName === 'function') return providerResolveTargetLangName(targetLang);
+  const langNames = {
+    'zh-CN': '简体中文',
+    'zh-TW': '繁體中文',
+    en: 'English',
+    ja: '日本語',
+    ko: '한국어',
+    fr: 'Français',
+    de: 'Deutsch',
+    es: 'Español',
+    ru: 'Русский',
+  };
+  return langNames[targetLang] || targetLang;
+}
+
+function resolveModelForService(config, service, modelOverride) {
+  if (typeof providerResolveModelForService === 'function') {
+    return providerResolveModelForService(config, service, modelOverride);
+  }
+  if (modelOverride) return modelOverride;
+  if (isCustomService(service)) {
+    const custom = config?.customServices?.find(s => s.id === service);
+    return custom?.selectedModel || 'default';
+  }
+  return config?.selectedModels?.[service] || DEFAULT_MODELS[service] || '';
+}
+
+function buildTranslationMessages(targetLang, text) {
+  if (typeof providerBuildTranslationMessages === 'function') {
+    return providerBuildTranslationMessages(targetLang, text);
+  }
+  const targetLangName = resolveTargetLangName(targetLang);
+  return {
+    system: `You are a professional translator. Translate into ${targetLangName} accurately and literally. Do NOT add facts, do NOT summarize, do NOT infer. Preserve numbers, names, entities, and paragraph boundaries. Return translation only. If input contains <TEXT>...</TEXT>, translate ONLY the content inside <TEXT> and ignore other context blocks.`,
+    user: text,
+  };
+}
+
+function extractChatCompletionText(data, serviceName) {
+  const normalizeContent = (content) => {
+    if (typeof content === 'string') return content.trim();
+    if (Array.isArray(content)) {
+      const joined = content
+        .map((part) => {
+          if (typeof part === 'string') return part;
+          if (part && typeof part === 'object') {
+            return part.text || part.content || part.output_text || '';
+          }
+          return '';
+        })
+        .join('')
+        .trim();
+      return joined;
+    }
+    if (content && typeof content === 'object') {
+      return String(content.text || content.content || content.output_text || '').trim();
+    }
+    return '';
+  };
+
+  if (typeof providerExtractChatCompletionText === 'function') {
+    try {
+      const out = providerExtractChatCompletionText(data, serviceName);
+      if (out && String(out).trim()) return String(out).trim();
+    } catch (_) {
+      // provider parser failed, fallback below
+    }
+  }
+
+  const candidates = [
+    data?.choices?.[0]?.message?.content,
+    data?.choices?.[0]?.text,
+    data?.output?.[0]?.content,
+    data?.output_text,
+  ];
+
+  for (const c of candidates) {
+    const text = normalizeContent(c);
+    if (text) return text;
+  }
+
+  throw new Error(`${serviceName} API 返回格式错误`);
+}
 
 const TRANSLATION_CACHE = new Map();
 const CACHE_MAX_SIZE = 1000;
@@ -30,14 +134,31 @@ const MIN_REQUEST_INTERVAL_BY_SERVICE = {
   'microsoft-free': 120,
   libretranslate: 300,
   mymemory: 250,
-  aliyun: 60,
-  'aliyun-mt': 60,
-  kimi: 50,
+  aliyun: 800,
+  'aliyun-mt': 800,
+  kimi: 60,
   zhipu: 60,
   deepseek: 60,
   openai: 60,
   openrouter: 60,
   custom: 60
+};
+
+const REQUEST_TIMEOUT_BY_SERVICE = {
+  default: 15000,
+  'google-free': 15000,
+  'microsoft-free': 15000,
+  google: 20000,
+  deepl: 20000,
+  libretranslate: 20000,
+  aliyun: 45000,
+  'aliyun-mt': 45000,
+  kimi: 45000,
+  zhipu: 45000,
+  deepseek: 45000,
+  openai: 45000,
+  openrouter: 45000,
+  custom: 45000
 };
 
 // 翻译队列（P0）：同配置请求短时间聚合为一次批处理调用
@@ -67,18 +188,29 @@ async function fetchWithRetry(url, options, serviceName, maxRetries = 2) {
   }
   lastRequestTime.set(serviceName, Date.now());
 
+  const timeoutMs = REQUEST_TIMEOUT_BY_SERVICE[serviceName] || REQUEST_TIMEOUT_BY_SERVICE.default;
+
   for (let attempt = 0; attempt < maxRetries; attempt++) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
     try {
       const fetchOptions = { ...options, signal: controller.signal };
       const response = await fetch(url, fetchOptions);
       clearTimeout(timeoutId);
       
-      // 429 限流：指数退避重试
+      // 429 限流：指数退避重试（优先尊重 Retry-After）
       if (response.status === 429 && attempt < maxRetries - 1) {
-        const delay = Math.pow(2, attempt) * 500 + Math.random() * 200;
+        const retryAfterHeader = response.headers?.get?.('retry-after');
+        let retryAfterMs = 0;
+        if (retryAfterHeader) {
+          const sec = Number(retryAfterHeader);
+          if (!Number.isNaN(sec) && sec > 0) {
+            retryAfterMs = sec * 1000;
+          }
+        }
+        const baseDelay = Math.pow(2, attempt) * 1200 + Math.random() * 400;
+        const delay = Math.max(retryAfterMs, baseDelay);
         await sleep(delay);
         continue;
       }
@@ -167,6 +299,12 @@ async function fetchRemoteModelsForService(service, apiKey) {
   return await fn();
 }
 
+function resolveTemperatureForService(serviceName, model, requested = 0.3) {
+  // Kimi 部分模型仅接受 temperature=1
+  if (serviceName === 'kimi') return 1;
+  return requested;
+}
+
 async function callOpenAICompatibleTranslate({
   serviceName,
   url,
@@ -182,33 +320,54 @@ async function callOpenAICompatibleTranslate({
   ensureApiKey(apiKey, serviceName);
   const { system, user } = buildTranslationMessages(targetLang, text);
 
-  const payload = {
+  const finalTemperature = resolveTemperatureForService(serviceName, model, temperature);
+
+  const baseBody = {
     model,
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: user },
-    ],
-    temperature,
+    temperature: finalTemperature,
     ...(typeof maxTokens === 'number' ? { max_tokens: maxTokens } : {}),
   };
 
-  const response = await fetchWithRetry(
-    url,
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        ...headers,
-      },
-      body: JSON.stringify(payload),
-    },
-    serviceName,
-    maxRetries,
-  );
+  const requestHeaders = {
+    Authorization: `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+    ...headers,
+  };
 
-  const data = await response.json();
-  return extractChatCompletionText(data, serviceName);
+  const requestWithMessages = async (messages) => {
+    const response = await fetchWithRetry(
+      url,
+      {
+        method: 'POST',
+        headers: requestHeaders,
+        body: JSON.stringify({ ...baseBody, messages }),
+      },
+      serviceName,
+      maxRetries,
+    );
+    const data = await response.json();
+    return extractChatCompletionText(data, serviceName);
+  };
+
+  try {
+    return await requestWithMessages([
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ]);
+  } catch (error) {
+    const msg = String(error?.message || '');
+    const roleRelated =
+      /role/i.test(msg) &&
+      (msg.includes('[user, assistant]') || msg.includes('system') || msg.includes('unsupported_value'));
+
+    if (!roleRelated) throw error;
+
+    // 兼容部分服务/模型：不支持 system 角色时，自动回退为纯 user 提示词
+    const mergedUserPrompt = `${system}\n\n${user}`;
+    return await requestWithMessages([
+      { role: 'user', content: mergedUserPrompt },
+    ]);
+  }
 }
 
 // ... (省略部分未变代码，保持原样逻辑) ...
@@ -417,16 +576,30 @@ async function translateWithKimi(text, targetLang, sourceLang, modelOverride) {
   const apiKey = zdfConfig?.apiKeys?.kimi;
   const model = resolveModelForService(zdfConfig, 'kimi', modelOverride);
 
-  return await callOpenAICompatibleTranslate({
-    serviceName: 'kimi',
-    url: 'https://api.moonshot.cn/v1/chat/completions',
-    apiKey,
-    model,
-    targetLang,
-    text,
-    maxRetries: 2,
-    maxTokens: 1000,
-  });
+  ensureApiKey(apiKey, 'kimi');
+
+  const { system, user } = buildTranslationMessages(targetLang, text);
+  const response = await fetchWithRetry(
+    'https://api.moonshot.cn/v1/chat/completions',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        // Kimi 某些模型对 system / temperature 参数更严格
+        messages: [{ role: 'user', content: `${system}\n\n${user}` }],
+        temperature: 1,
+      }),
+    },
+    'kimi',
+    2,
+  );
+
+  const data = await response.json();
+  return extractChatCompletionText(data, 'kimi');
 }
 
 // ... (其他 API 函数保持原样，仅复用 fetchWithRetry 优化) ...
@@ -513,6 +686,10 @@ function setTranslationCache(key, value) {
 
 function buildContextAwareText(request) {
   const { text, service, enableAIContentAware, articleTitle, articleSummary } = request;
+  // Kimi 走极速路径：关闭上下文拼接，避免每段都携带长上下文导致明显变慢
+  if (service === 'kimi') {
+    return text;
+  }
   if (!enableAIContentAware || !isLLMService(service)) {
     return text;
   }
@@ -522,12 +699,13 @@ function buildContextAwareText(request) {
     return text;
   }
   return [
-    'Context for translation:',
+    '<CONTEXT>',
     title ? `Title: ${title}` : '',
     summary ? `Summary: ${summary}` : '',
-    '',
-    'Text to translate:',
+    '</CONTEXT>',
+    '<TEXT>',
     text,
+    '</TEXT>',
   ].filter(Boolean).join('\n');
 }
 
@@ -638,6 +816,13 @@ function enqueueTranslationRequest(request) {
     return Promise.resolve(TRANSLATION_CACHE.get(cacheKey));
   }
 
+  const service = request?.service || 'microsoft-free';
+  const isFastPath = !['microsoft-free', 'google-free', 'libretranslate'].includes(service);
+  if (isFastPath) {
+    // API/LLM 服务不做后台聚合，避免分隔符污染与“前几段后就卡住”
+    return handleTranslation(request);
+  }
+
   const groupKey = getBatchGroupKey(request);
   let queue = translationBatchQueues.get(groupKey);
   if (!queue) {
@@ -670,14 +855,36 @@ async function translateWithAliyun(text, targetLang, sourceLang, modelOverride) 
     const apiKey = zdfConfig?.apiKeys?.aliyun;
     const model = resolveModelForService(zdfConfig, 'aliyun', modelOverride);
 
-    return await callOpenAICompatibleTranslate({
-      serviceName: 'aliyun',
-      url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
-      apiKey,
-      model,
-      targetLang,
-      text,
-    });
+    ensureApiKey(apiKey, 'aliyun');
+
+    // 某些阿里云模型不接受 system 角色（报错: Role must be in [user, assistant]）
+    // 这里改为纯 user 消息，避免整条 API 翻译链路失效。
+    const targetLangName = resolveTargetLangName(targetLang);
+    const response = await fetchWithRetry(
+      'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: 'user',
+              content: `You are a professional translator. Translate the following text to ${targetLangName}. Only return the translated text, no explanations.\n\n${text}`,
+            },
+          ],
+          temperature: 0.3,
+        }),
+      },
+      'aliyun',
+      4,
+    );
+
+    const data = await response.json();
+    return extractChatCompletionText(data, 'aliyun');
 }
 
 async function translateWithZhipu(text, targetLang, sourceLang, modelOverride) {

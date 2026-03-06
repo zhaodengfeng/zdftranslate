@@ -62,7 +62,7 @@
   function buildTranslationMessages(targetLang, text) {
     const targetLangName = resolveTargetLangName(targetLang);
     return {
-      system: `You are a professional translator. Translate the following text to ${targetLangName}. Only return the translated text, no explanations.`,
+      system: `You are a professional translator. Translate into ${targetLangName} accurately and literally. Do NOT add facts, do NOT summarize, do NOT infer. Preserve numbers, names, entities, and paragraph boundaries. Return translation only. If input contains <TEXT>...</TEXT>, translate ONLY the content inside <TEXT> and ignore other context blocks.`,
       user: text,
     };
   }
