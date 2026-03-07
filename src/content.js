@@ -2840,6 +2840,14 @@
       endY = Math.max(endY, translatedBottom + 80);
     }
 
+    // ★★ 终极兜底：用 articleElement.scrollHeight 确保所有 DOM 内容被捕获
+    // scrollHeight 不受 overflow:hidden 影响，反映真实内容高度
+    const articleScrollBottom = rootRect.top + articleElement.scrollHeight;
+    if (articleScrollBottom > endY + 40) {
+      // 仅当 scrollHeight 明显超出 endY 时扩展（避免空白填充）
+      endY = Math.max(endY, articleScrollBottom + 40);
+    }
+
     // 左右边界：按真实内容边界裁剪，删除外侧空白（保留少量边距）
     let left = Math.max(0, rootRect.left);
     let right = rootRect.right;
