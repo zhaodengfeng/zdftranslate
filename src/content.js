@@ -2392,10 +2392,13 @@
     }
 
     await warmupArticleForCapture(articleElement);
+    // 等待 warmup 滚动触发的懒加载翻译 API 调用返回（竞态窗口）
+    await new Promise(resolve => setTimeout(resolve, 800));
 
     let bounds = getArticleCaptureBounds(articleElement);
     if (!bounds || bounds.width < 80 || bounds.height < 320) {
       await warmupArticleForCapture(articleElement, { deep: true });
+      await new Promise(resolve => setTimeout(resolve, 800));
       bounds = getArticleCaptureBounds(articleElement);
     }
     if (!bounds || bounds.width < 80 || bounds.height < 80) {
@@ -2843,12 +2846,24 @@
       endY = Math.max(endY, translatedBottom + 80);
     }
 
-    // ★★ 终极兜底：用 articleElement.scrollHeight 确保所有 DOM 内容被捕获
-    // scrollHeight 不受 overflow:hidden 影响，反映真实内容高度
+    // ★★ 终极兜底1：所有段落节点底部（不依赖翻译状态，含未翻译段落）
+    const allParaBottom = Array.from(articleElement.querySelectorAll('p, li, blockquote, h1, h2, h3, h4, h5, h6'))
+      .filter(el => {
+        if (!el) return false;
+        const exc = el.closest('nav,footer,aside,.sidebar,[role="navigation"]');
+        return !exc;
+      })
+      .reduce((max, el) => {
+        const r = el.getBoundingClientRect();
+        return (r && r.bottom > max) ? r.bottom : max;
+      }, 0);
+    if (allParaBottom > 0) {
+      endY = Math.max(endY, allParaBottom + 120);
+    }
+
+    // ★★ 终极兜底2：用 articleElement.scrollHeight 确保 overflow 内容被捕获
     const articleScrollBottom = rootRect.top + articleElement.scrollHeight;
-    console.log('[ZDF bounds]', { endY: Math.round(endY), articleScrollBottom: Math.round(articleScrollBottom), rootRectBottom: Math.round(rootRect.bottom), translatedCount: translatedNodes.length });
     if (articleScrollBottom > endY + 40) {
-      // 仅当 scrollHeight 明显超出 endY 时扩展（避免空白填充）
       endY = Math.max(endY, articleScrollBottom + 40);
     }
 
