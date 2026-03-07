@@ -50,7 +50,7 @@
       updateFloatingButtonState();
     }, 0);
   });
-  
+
   // 重新加载配置
   async function reloadConfig() {
     return new Promise((resolve) => {
@@ -167,7 +167,7 @@
 
   function init() {
     if (isExcludedSite()) return;
-    
+
     // 使用 Intersection Observer 实现懒加载翻译
     const observer = new IntersectionObserver((entries) => {
       entries.forEach(entry => {
@@ -259,7 +259,7 @@
     while (node = walker.nextNode()) {
       const tag = node.tagName.toLowerCase();
       if (['script', 'style', 'nav', 'header', 'footer', 'aside'].includes(tag)) continue;
-      
+
       const textLength = getTextLength(node);
       const linkDensity = getLinkDensity(node);
       const score = textLength * (1 - linkDensity);
@@ -280,10 +280,10 @@
   function getLinkDensity(element) {
     const textLength = getTextLength(element);
     if (textLength === 0) return 0;
-    
+
     const linkText = Array.from(element.querySelectorAll('a'))
       .reduce((sum, a) => sum + getTextLength(a), 0);
-    
+
     return linkText / textLength;
   }
 
@@ -357,7 +357,7 @@
       return { batchSize: 4, concurrency: 2 };
     }
 
-    // 其他 LLM/API 服务优先“边翻边出”，避免长时间无反馈后整页突变
+    // 其他 LLM/API 服务优先"边翻边出"，避免长时间无反馈后整页突变
     if (['zhipu', 'openai', 'deepseek', 'openrouter', 'google', 'deepl'].includes(service) || String(service || '').startsWith('custom_')) {
       return { batchSize: 1, concurrency: 2 };
     }
@@ -365,61 +365,61 @@
     // 默认
     return { batchSize: 2, concurrency: 2 };
   }
-  
+
   // 带并发控制的批量翻译
   async function translateWithConcurrency(elements, batchSize, concurrency) {
     if (!elements.length) return;
-    
+
     const batches = [];
     for (let i = 0; i < elements.length; i += batchSize) {
       batches.push(elements.slice(i, i + batchSize));
     }
-    
+
     for (let i = 0; i < batches.length; i += concurrency) {
       if (!translationActive) {
         break;
       }
-      
+
       const currentBatches = batches.slice(i, i + concurrency);
-      await Promise.allSettled(currentBatches.map((batch, idx) => 
+      await Promise.allSettled(currentBatches.map((batch, idx) =>
         translateBatchWithDisplay(batch, i + idx)
       ));
     }
   }
-  
+
   // 批量翻译并立即显示结果（流水线模式）
   async function translateBatchWithDisplay(elements, batchIndex) {
     if (elements.length === 0) return;
     if (elements.length === 1) {
       return translateParagraph(elements[0]);
     }
-    
+
     // 批量翻译多个段落
     const texts = elements.map(el => el.innerText.trim());
     const separator = '\n\n---PARA_BREAK---\n\n';
     const combinedText = texts.join(separator);
-    
+
     // 标记所有元素为已翻译（防止重复）
     elements.forEach(el => el.dataset.zdfTranslated = 'true');
-    
+
     try {
       const translatedCombined = await translateText(combinedText);
-      
+
       // 检查是否已取消
       if (!translationActive) {
         return;
       }
-      
+
       const translatedParts = translatedCombined.split(separator);
-      
+
       // 立即显示每个翻译结果（流水线）
       elements.forEach((el, index) => {
         if (!translationActive) return;
-        
+
         if (translatedParts[index]) {
           const originalText = texts[index];
           const translatedText = translatedParts[index].trim();
-          
+
           if (config.displayMode === 'replace') {
             insertReplaceMode(el, originalText, translatedText);
           } else {
@@ -453,7 +453,7 @@
       }
     }
   }
-  
+
   // 辅助函数：延迟
   function sleep(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -479,7 +479,7 @@
       if (toast) toast.style.display = 'none';
     }, 3500);
   }
-  
+
   // 判断是否应该翻译
   function shouldTranslate(element) {
     // 已翻译的跳过
@@ -537,11 +537,11 @@
 
     try {
       const translatedText = await translateText(originalText);
-      
+
       if (!translationActive) {
         return;
       }
-      
+
       if (config.displayMode === 'replace') {
         insertReplaceMode(element, originalText, translatedText);
       } else {
@@ -575,22 +575,22 @@
       element.dataset.zdfOriginalHtml = element.innerHTML;
       element.dataset.zdfOriginalText = original;
     }
-    
+
     // 构造优雅的中文排版容器
     const container = document.createElement('div');
     container.className = 'zdf-translation-container zdf-mode-replace';
-    
+
     // 隐藏原文（不删除，以便恢复或对比）
     const originalDiv = document.createElement('div');
     originalDiv.className = 'zdf-original';
     originalDiv.innerHTML = element.dataset.zdfOriginalHtml;
     originalDiv.style.display = 'none'; // 关键：隐藏原文
-    
+
     // 译文显示优化：字号稍大，行高舒适，仿书页效果
     const translatedDiv = document.createElement('div');
     translatedDiv.className = 'zdf-translated';
     translatedDiv.textContent = translated;
-    
+
     // 动态样式：使用系统字体栈，不硬编码颜色以免与暗黑模式冲突
     translatedDiv.style.cssText = `
       font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -614,10 +614,10 @@
 
     container.appendChild(originalDiv);
     container.appendChild(translatedDiv);
-    
+
     element.innerHTML = '';
     element.appendChild(container);
-    
+
     // 记录翻译的元素
     translatedElements.add(element);
   }
@@ -630,14 +630,14 @@
       element.dataset.zdfOriginalHtml = element.innerHTML;
       element.dataset.zdfOriginalText = original;
     }
-    
+
     const container = document.createElement('div');
     container.className = 'zdf-translation-container';
-    
+
     const originalDiv = document.createElement('div');
     originalDiv.className = 'zdf-original';
     originalDiv.innerHTML = element.dataset.zdfOriginalHtml;
-    
+
     const translatedDiv = document.createElement('div');
     translatedDiv.className = 'zdf-translated';
     translatedDiv.textContent = translated;
@@ -660,10 +660,10 @@
 
     container.appendChild(originalDiv);
     container.appendChild(translatedDiv);
-    
+
     element.innerHTML = '';
     element.appendChild(container);
-    
+
     // 记录翻译的元素
     translatedElements.add(element);
   }
@@ -837,10 +837,10 @@
   // 开始翻译（手动触发）
   async function startTranslation() {
     if (isExcludedSite()) return;
-    
+
     // 重新加载最新配置
     await reloadConfig();
-    
+
     // 检查是否需要重新翻译（服务或目标语言变化）
     const currentSettings = `${config.translationService}_${config.targetLang}_${config.displayMode}`;
     const lastSettings = document.body.dataset.zdfLastSettings;
@@ -848,7 +848,7 @@
       restoreOriginal();
     }
     document.body.dataset.zdfLastSettings = currentSettings;
-    
+
     // 标记翻译状态
     translationActive = true;
     document.body.dataset.zdfActive = 'true';
@@ -860,7 +860,7 @@
 
     // 立即翻译当前可见区域的内容
     const contentBlocks = findContentBlocks();
-    
+
     const immediateTasks = [];
 
     for (const block of contentBlocks) {
@@ -900,7 +900,7 @@
   function restoreOriginal() {
     translationActive = false;
     delete document.body.dataset.zdfActive;
-    
+
     // 移除所有翻译内容
     document.querySelectorAll('[data-zdf-translated]').forEach(el => {
       // 恢复原始内容
@@ -912,7 +912,7 @@
       delete el.dataset.zdfOriginalHtml;
       delete el.dataset.zdfOriginalText;
     });
-    
+
     // 同时清理所有翻译容器（以防万一）
     document.querySelectorAll('.zdf-translation-container').forEach(container => {
       const parent = container.parentElement;
@@ -923,9 +923,9 @@
         delete parent.dataset.zdfOriginalText;
       }
     });
-    
+
     translatedElements.clear();
-    
+
     // 断开所有懒加载 observers
     lazyLoadObservers.forEach(observer => observer.disconnect());
     lazyLoadObservers = [];
@@ -939,7 +939,7 @@
     containers.forEach(container => {
       const original = container.querySelector('.zdf-original');
       const translated = container.querySelector('.zdf-translated');
-      
+
       if (original && translated) {
         if (translated.style.display === 'none') {
           translated.style.display = 'block';
@@ -953,7 +953,7 @@
   }
 
   // ========== 右键菜单翻译弹窗 ==========
-  
+
   // 显示翻译弹窗
   let popupStreamTimer = null;
   let popupLatestTranslatedText = '';
@@ -1152,7 +1152,7 @@
 
     let paragraphs = normalizeTextToParagraphsStrict(raw);
 
-    // 如果译文几乎没分段，按句子做温和分段，避免“一坨”
+    // 如果译文几乎没分段，按句子做温和分段，避免"一坨"
     if (paragraphs.length <= 1) {
       const sentences = raw
         .split(/(?<=[。！？!?])/)
@@ -1296,7 +1296,7 @@
     const pageFontFamily = getPageDisplayFontFamily();
     const fontOriginal = `500 42px ${pageFontFamily}`;
     const fontTranslated = `400 42px ${pageFontFamily}`;
-    
+
     // 纯译文模式：字号加大，行高加大
     const fontClean = `400 48px ${pageFontFamily}`;
     const lineHeightClean = 82;
@@ -1312,7 +1312,7 @@
       if (!text) return [];
       ctx.font = font;
 
-      const tokenRe = /([A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*)|(\s+)|([^\sA-Za-z0-9])/g;
+      const tokenRe = /([A-Za-z0-9]+(?:[''-][A-Za-z0-9]+)*)|(\s+)|([^\sA-Za-z0-9])/g;
       const tokens = [];
       let m;
       while ((m = tokenRe.exec(text)) !== null) {
@@ -1407,7 +1407,7 @@
 
     // 页面底色
     const g = ctx.createLinearGradient(0, 0, 0, baseHeight);
-    
+
     if (isCleanMode) {
       // 纯净模式：米白色护眼底色，像纸张
       g.addColorStop(0, '#fdfbf7');
@@ -1416,7 +1416,7 @@
       g.addColorStop(0, '#f3f7ff');
       g.addColorStop(1, '#eef3fb');
     }
-    
+
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, baseWidth, baseHeight);
 
@@ -1458,7 +1458,7 @@
           ty += lineHeightClean;
         });
         y += b.translatedLines.length * lineHeightClean + blockGap * 1.5;
-        
+
       } else {
         // 双语绘制
         // 原文区块
@@ -2057,7 +2057,7 @@
   });
 
   // ========== 悬浮翻译按钮 ==========
-  
+
   let isTranslating = false; // 翻译进行中标记
   let floatingActionsHideTimer = null;
   let floatingActionsOpen = false;
@@ -2242,12 +2242,12 @@
   function createFloatingButton() {
     // 检查是否已存在
     if (document.getElementById('zdf-floating-translate-btn')) return;
-    
+
     const btn = document.createElement('div');
     btn.id = 'zdf-floating-translate-btn';
     btn.className = 'zdf-floating-btn';
     btn.title = '点击翻译页面';
-    
+
     // 翻译图标 + 右上角绿勾徽章
     const floatIconUrl = chrome.runtime.getURL('assets/float-icon-32.png');
     btn.innerHTML = `
@@ -2258,7 +2258,7 @@
         </svg>
       </div>
     `;
-    
+
     btn.addEventListener('click', handleFloatingButtonClick);
     btn.addEventListener('mouseenter', () => openFloatingActions());
     btn.addEventListener('mouseleave', () => closeFloatingActions(180));
@@ -2266,11 +2266,11 @@
     document.body.appendChild(btn);
     applyFloatingButtonPosition(btn);
     bindFloatingButtonDrag(btn);
-    
+
     // 更新按钮状态
     updateFloatingButtonState();
   }
-  
+
   async function handleFloatingButtonClick() {
     const btn = document.getElementById('zdf-floating-translate-btn');
     if (!btn) return;
@@ -2278,7 +2278,7 @@
       suppressFloatingClick = false;
       return;
     }
-    
+
     if (translationActive || isTranslating) {
       // 已翻译或翻译中 -> 恢复原文
       isTranslating = false;
@@ -2286,7 +2286,7 @@
       translationActive = false;
       btn.classList.remove('zdf-float-loading');
       updateFloatingButtonState();
-      
+
       // 通知 background + popup 实时更新状态
       await syncAndNotifyTranslationStatus(false);
     } else {
@@ -2294,25 +2294,25 @@
       isTranslating = true;
       btn.classList.add('zdf-float-loading');
       updateFloatingButtonState();
-      
+
       await startTranslation();
-      
+
       isTranslating = false;
       translationActive = true;
       btn.classList.remove('zdf-float-loading');
       updateFloatingButtonState();
-      
+
       // 通知 background + popup 实时更新状态
       await syncAndNotifyTranslationStatus(true);
     }
   }
-  
+
   function updateFloatingButtonState() {
     const btn = document.getElementById('zdf-floating-translate-btn');
     if (!btn) return;
-    
+
     const badge = btn.querySelector('.zdf-float-badge');
-    
+
     if (translationActive) {
       // 显示绿勾徽章
       btn.classList.add('zdf-float-translated');
@@ -2327,7 +2327,7 @@
       if (badge) badge.style.display = 'none';
     }
   }
-  
+
   async function getCurrentTabId() {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage({ action: 'getCurrentTabId' }, (response) => {
@@ -2339,30 +2339,30 @@
       });
     });
   }
-  
+
   // ========== 文章截图功能 ==========
 
   // 预处理跨域图片，尝试设置 crossOrigin 属性
   async function prepareImagesForCapture() {
     const images = document.querySelectorAll('img');
     const promises = [];
-    
+
     images.forEach(img => {
       // 跳过已经是 data URL 或同源的图
       if (!img.src || img.src.startsWith('data:')) return;
-      
+
       try {
         const imgUrl = new URL(img.src);
         if (imgUrl.origin === location.origin) return; // 同源，不需要处理
       } catch (e) {
         return; // URL 解析失败，跳过
       }
-      
+
       // 尝试设置 crossOrigin
       if (img.crossOrigin !== 'anonymous') {
         img.crossOrigin = 'anonymous';
       }
-      
+
       // 如果图片还没加载完，等待它加载
       if (!img.complete) {
         promises.push(new Promise((resolve) => {
@@ -2378,7 +2378,7 @@
         }));
       }
     });
-    
+
     // 仅等待 img 标签的处理，不再扫描背景图以提升性能
     await Promise.all(promises);
     // 额外等待一小段时间让 CORS 设置生效
@@ -2481,10 +2481,10 @@
   function handleExportError(error, type) {
     const action = type === 'pdf' ? 'PDF导出' : '截图';
     let message = error.message || '未知错误';
-    
+
     // 检测 CORS 相关错误
-    if (message.includes('CORS_ERROR') || 
-        message.includes('Tainted canvases') || 
+    if (message.includes('CORS_ERROR') ||
+        message.includes('Tainted canvases') ||
         message.includes('tainted') ||
         message.includes('cross-origin') ||
         message.includes('getImageData')) {
@@ -2492,7 +2492,7 @@
     } else {
       message = `${action}失败: ${message}`;
     }
-    
+
     alert(message);
   }
 
@@ -2557,7 +2557,7 @@
         let bestScore = Infinity;
 
         for (let y = minY; y <= maxY; y += 2) {
-          // 用更宽的竖向窗口找“段落间空带”，尽量避开正文行
+          // 用更宽的竖向窗口找"段落间空带"，尽量避开正文行
           let s = 0;
           for (let k = -5; k <= 5; k++) s += rowInkScore(y + k);
 
@@ -2705,7 +2705,7 @@
     return Number.isFinite(nextTop) ? nextTop : null;
   }
 
-  // 计算截图区域：仅保留“标题开始 -> 文章结束”的纵向范围，保留原网页样式
+  // 计算截图区域：仅保留"标题开始 -> 文章结束"的纵向范围，保留原网页样式
   function getArticleCaptureBounds(articleElement) {
     const rootRect = articleElement.getBoundingClientRect();
     if (!rootRect || rootRect.width <= 0 || rootRect.height <= 0) return null;
@@ -2750,7 +2750,7 @@
       return r && r.width > 10 && r.height > 8;
     });
 
-    // 结束位置：按“正文连续流”计算，避免把下篇文章截进来
+    // 结束位置：按"正文连续流"计算，避免把下篇文章截进来
     let endY = rootRect.bottom + 72;
     if (contentNodes.length > 0) {
       const titleRect = titleEl ? titleEl.getBoundingClientRect() : null;
@@ -2777,19 +2777,19 @@
           const r = flowNodes[i].r;
           const gap = r.top - lastBottom;
 
-          // 大图新闻常见“头图后大空白”，单次大 gap 不应直接判定结束
-          if (gap > 700) {
+          // 大图新闻常见"头图后大空白"，单次大 gap 不应直接判定结束
+          if (gap > 1000) {
             largeGapCount++;
             largeGapStreak++;
-          } else if (gap > 420) {
+          } else if (gap > 600) {
             largeGapCount++;
             largeGapStreak = 0;
           } else {
             largeGapStreak = 0;
           }
 
-          // 仅在多次明显断层时才提前停止（防止只截到头图）
-          if (largeGapStreak >= 2 || (largeGapCount >= 3 && gap > 520)) break;
+          // 仅在多次明显断层时才提前停止（防止把图文间距误判为文章边界）
+          if (largeGapStreak >= 3 || (largeGapCount >= 5 && gap > 700)) break;
 
           lastBottom = Math.max(lastBottom, r.bottom);
         }
@@ -2800,13 +2800,7 @@
       }
     }
 
-    // 双语模式下：最后翻译段通常更接近真实文末；只扩展不收缩，避免末尾被砍
-    if (translatedNodes.length > 0) {
-      const translatedBottom = Math.max(...translatedNodes.map(el => el.getBoundingClientRect().bottom));
-      endY = Math.max(endY, translatedBottom + 80);
-    }
-
-    // 截断到“正文之后的分界块”之前（避免把相关文章/评论区截进来）
+    // 截断到"正文之后的分界块"之前（避免把相关文章/评论区截进来）
     const boundarySelectors = [
       '.related', '.related-posts', '.related-articles', '.recommend', '.recommendation',
       '.more-articles', '.also-read', '.read-more', '.read-next',
@@ -2826,10 +2820,10 @@
       endY = Math.min(endY, boundaryTop - 10);
     }
 
-    // 检测“下一篇文章起点”并强制裁断，避免把下篇一起截进来（Bloomberg 等）
+    // 检测"下一篇文章起点"并强制裁断，避免把下篇一起截进来（Bloomberg 等）
     const nextArticleTop = detectNextArticleBoundary(articleElement, startY, titleEl);
     if (nextArticleTop) {
-      // 仅在“明显超出当前正文”时才裁断，防止误判把正文截短
+      // 仅在"明显超出当前正文"时才裁断，防止误判把正文截短
       const candidateEnd = nextArticleTop - 28;
       if (candidateEnd > startY + 1000 && endY - candidateEnd > 260) {
         endY = Math.min(endY, candidateEnd);
@@ -2838,6 +2832,13 @@
 
     // 避免无限过长，但允许长文完整截图
     endY = Math.min(endY, rootRect.bottom + 12000);
+
+    // ★ 最终保护：已翻译内容绝不裁断（优先级高于所有边界检测）
+    // 注意：必须放在所有 Math.min 裁断之后，作为最终 override
+    if (translatedNodes.length > 0) {
+      const translatedBottom = Math.max(...translatedNodes.map(el => el.getBoundingClientRect().bottom));
+      endY = Math.max(endY, translatedBottom + 80);
+    }
 
     // 左右边界：按真实内容边界裁剪，删除外侧空白（保留少量边距）
     let left = Math.max(0, rootRect.left);
@@ -2856,7 +2857,7 @@
       const docRight = Math.max(document.documentElement.clientWidth, document.documentElement.scrollWidth);
       const viewportW = Math.max(1, document.documentElement.clientWidth || window.innerWidth || 1);
 
-      // 过滤掉“横跨全屏”的异常节点（常见于广告壳/背景容器），避免把截图左侧拉出大片空白
+      // 过滤掉"横跨全屏"的异常节点（常见于广告壳/背景容器），避免把截图左侧拉出大片空白
       const stableRects = lrRects.filter(r => !(r.width > viewportW * 0.92 && r.height < 260));
       const baseRects = stableRects.length > 0 ? stableRects : lrRects;
 
@@ -3063,7 +3064,7 @@
     // 4. 收集正文内容节点
     //    遍历克隆后的文章，只保留从标题到最后翻译元素之间的内容
     const allNodes = clonedArticle.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, ol, ul, blockquote, figure, img, pre, table, .zdf-translation-container, [data-zdf-translated]');
-    
+
     // 找到第一个和最后一个翻译元素在克隆DOM中的位置
     const translatedInClone = clonedArticle.querySelectorAll('[data-zdf-translated]');
     const firstTranslated = translatedInClone.length > 0 ? translatedInClone[0] : null;
@@ -3278,7 +3279,7 @@
     });
 
     if (translatedEls.length > 0) {
-      // 先按页面位置锁定“第一篇正文”的翻译节点（修复彭博同页多篇时命中最后一篇）
+      // 先按页面位置锁定"第一篇正文"的翻译节点（修复彭博同页多篇时命中最后一篇）
       const sortedTranslated = translatedEls
         .slice()
         .sort((a, b) => {
@@ -3498,13 +3499,13 @@
     let imageY = rect.top - actionH - gap;
     let pdfY = rect.bottom + gap;
 
-    // 若顶部空间不足：把“上方按钮”翻到下方，避免不可见
+    // 若顶部空间不足：把"上方按钮"翻到下方，避免不可见
     if (imageY < 8) {
       imageY = rect.bottom + gap;
       pdfY = imageY + actionH + gap;
     }
 
-    // 若底部空间不足：把“下方按钮”翻到上方
+    // 若底部空间不足：把"下方按钮"翻到上方
     if (pdfY > window.innerHeight - actionH - 8) {
       pdfY = rect.top - actionH - gap;
       imageY = pdfY - actionH - gap;
