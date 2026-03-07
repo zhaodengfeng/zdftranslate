@@ -2343,6 +2343,76 @@
   // ========== 文章截图功能 ==========
 
   // 预处理跨域图片，尝试设置 crossOrigin 属性
+  /**
+   * 把同源 iframe 内的图表（SVG/Canvas）转为 <img> 临时替换，
+   * 让 html2canvas 能渲染到截图中。返回 restore 函数。
+   * 主要针对 Bloomberg toaster/v2/charts iframe。
+   */
+  async function prepareIframeChartsForCapture() {
+    const iframes = Array.from(document.querySelectorAll('iframe'));
+    const replacements = [];
+
+    for (const iframe of iframes) {
+      // 只处理尺寸可见的 iframe
+      const rect = iframe.getBoundingClientRect();
+      if (rect.width < 60 || rect.height < 60) continue;
+
+      try {
+        const iframeDoc = iframe.contentDocument;
+        if (!iframeDoc || iframeDoc.readyState === 'loading') continue;
+
+        let dataUrl = null;
+        let naturalW = rect.width;
+        let naturalH = rect.height;
+
+        // 优先处理 SVG 图表
+        const svg = iframeDoc.querySelector('svg');
+        if (svg) {
+          // 注入 xmlns 防止序列化失败
+          if (!svg.getAttribute('xmlns')) {
+            svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+          }
+          const svgStr = new XMLSerializer().serializeToString(svg);
+          const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+          dataUrl = URL.createObjectURL(svgBlob);
+          const svgRect = svg.getBoundingClientRect();
+          if (svgRect.width > 0) naturalW = svgRect.width;
+          if (svgRect.height > 0) naturalH = svgRect.height;
+        } else {
+          // 尝试 canvas
+          const cnv = iframeDoc.querySelector('canvas');
+          if (cnv) {
+            try { dataUrl = cnv.toDataURL(); } catch (_) {}
+            if (dataUrl) {
+              naturalW = cnv.width || naturalW;
+              naturalH = cnv.height || naturalH;
+            }
+          }
+        }
+
+        if (!dataUrl) continue;
+
+        const img = document.createElement('img');
+        img.src = dataUrl;
+        img.style.cssText = `display:block;width:${rect.width}px;height:${rect.height}px;max-width:100%;`;
+        img.setAttribute('data-zdf-chart-placeholder', '1');
+        iframe.parentNode.insertBefore(img, iframe);
+        iframe.style.visibility = 'hidden';
+        replacements.push({ iframe, img, dataUrl });
+      } catch (_) {
+        // 跨域或访问受限，跳过
+      }
+    }
+
+    return function restoreIframeCharts() {
+      for (const { iframe, img, dataUrl } of replacements) {
+        iframe.style.visibility = '';
+        img.remove();
+        if (dataUrl.startsWith('blob:')) URL.revokeObjectURL(dataUrl);
+      }
+    };
+  }
+
   async function prepareImagesForCapture() {
     const images = document.querySelectorAll('img');
     const promises = [];
@@ -2416,6 +2486,8 @@
 
     // 预处理跨域图片：尝试设置 crossOrigin 属性
     await prepareImagesForCapture();
+    // 把同源 iframe 图表（Bloomberg toaster charts 等）转为 img，html2canvas 可渲染
+    const restoreIframeCharts = await prepareIframeChartsForCapture();
 
     const canvas = await html2canvas(document.body, {
       useCORS: true,
@@ -2449,6 +2521,9 @@
     const totalCtx = totalCanvas.getContext('2d');
 
     totalCtx.drawImage(canvas, 0, 0);
+
+    // html2canvas 已完成，立即恢复 iframe（在返回 canvas 前）
+    restoreIframeCharts();
 
     if (showWatermark) {
       await drawWatermarkBar(totalCtx, totalCanvas.width, canvas.height, watermarkHeight);
