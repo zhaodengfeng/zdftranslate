@@ -181,6 +181,31 @@
     // 查找主要内容区域
     const contentBlocks = findContentBlocks();
     contentBlocks.forEach(block => observer.observe(block));
+
+    // 补充：如果已经在翻译状态，直接翻译游离标题（如 Bloomberg）
+    if (translationActive) translateStandaloneHeadings();
+  }
+
+  // 直接翻译游离在内容块之外的 h1/h2 标题（兼容 Bloomberg 等站点）
+  async function translateStandaloneHeadings() {
+    const allH1 = Array.from(document.querySelectorAll('h1, h2'));
+    const headings = allH1.filter(h => {
+      if (h.dataset?.zdfTranslated) return false;
+      const text = (h.innerText || '').trim();
+      if (!text || text.length < 10 || isTargetLanguage(text)) return false;
+      const rect = h.getBoundingClientRect();
+      if (!rect || rect.width < 100 || rect.height < 8) return false;
+      // 只处理视口附近的标题（首屏或稍微往下）
+      if (rect.top > window.innerHeight * 2.5 || rect.bottom < -80) return false;
+      const style = window.getComputedStyle(h);
+      if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || '1') === 0) return false;
+      return true;
+    });
+    for (const h of headings) {
+      if (!translationActive) break;
+      if (h.dataset?.zdfTranslated) continue;
+      await translateParagraph(h);
+    }
   }
 
   // 智能识别页面主要内容块
@@ -259,17 +284,54 @@
     return linkText / textLength;
   }
 
+  function findExternalHeadlineForBlock(element) {
+    // Bloomberg 等站点常把主标题放在 article/main 外层，这里补一个就近兜底
+    const hasLocalHeadline = !!element.querySelector('h1, h2');
+    if (hasLocalHeadline) return null;
+
+    const rootRect = element.getBoundingClientRect();
+    const candidates = Array.from(document.querySelectorAll('h1, h2'))
+      .filter((h) => {
+        if (!h || h.dataset?.zdfTranslated) return false;
+        if (element.contains(h)) return false;
+        if (!shouldTranslate(h)) return false;
+
+        const r = h.getBoundingClientRect();
+        if (!r || r.width < 120 || r.height < 18) return false;
+
+        // 只取离正文块较近的标题
+        const nearTop = Math.abs(r.top - rootRect.top) < 520;
+        const horizontalOverlap = !(r.right < rootRect.left || r.left > rootRect.right);
+        return nearTop && horizontalOverlap;
+      })
+      .sort((a, b) => {
+        const ar = a.getBoundingClientRect();
+        const br = b.getBoundingClientRect();
+        const ad = Math.abs(ar.top - rootRect.top);
+        const bd = Math.abs(br.top - rootRect.top);
+        if (ad !== bd) return ad - bd;
+        return (br.width * br.height) - (ar.width * ar.height);
+      });
+
+    return candidates[0] || null;
+  }
+
   // 处理元素内容 - 批量翻译提高速度
   async function processElement(element) {
     if (!translationActive) {
       return;
     }
-    
+
     const paragraphs = element.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li');
     const toTranslate = Array.from(paragraphs).filter(shouldTranslate);
-    
+
+    const externalHeadline = findExternalHeadlineForBlock(element);
+    if (externalHeadline) {
+      toTranslate.unshift(externalHeadline);
+    }
+
     if (!toTranslate.length) return;
-    
+
     // 使用批量翻译提高速度（按服务动态调优）
     const tuning = getBatchTuning(config.translationService);
     await translateWithConcurrency(toTranslate, tuning.batchSize, tuning.concurrency);
@@ -421,8 +483,19 @@
     if (element.dataset.zdfTranslated) return false;
 
     // 导航/页眉/页脚/侧栏等区域不翻译，避免版式错位
-    if (element.closest('nav, header, footer, aside, [role="navigation"], [role="banner"], .nav, .navbar, .menu, .breadcrumb, .toolbar')) {
-      return false;
+    // 例外：h1/h2 元素本身就是标题，不可能是导航，直接跳过容器检查
+    const isHeadingEl = /^h[12]$/i.test(element.tagName);
+    if (!isHeadingEl) {
+      const closestHeader = element.closest('nav, header, footer, aside, [role="navigation"], [role="banner"], .nav, .navbar, .menu, .breadcrumb, .toolbar');
+      if (closestHeader) {
+        const tagName = closestHeader.tagName?.toLowerCase();
+        // 如果是 header 标签且位于 article 或 main 内，允许翻译（文章级 header，非页面级）
+        if (tagName === 'header' && closestHeader.closest('article, main')) {
+          // 允许通过
+        } else {
+          return false;
+        }
+      }
     }
 
     // 代码块不翻译
@@ -524,6 +597,14 @@
       text-align: justify;
       margin-bottom: 0.8em;
       color: inherit;
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     `;
     // 添加虚线下划线提示（可选，鼠标悬停显示原文）
     translatedDiv.title = '双击或切换模式可查看原文';
@@ -564,6 +645,14 @@
       padding: 10px 0;
       line-height: ${config.style.lineSpacing};
       transition: opacity 0.3s ease;
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      white-space: normal;
+      overflow-wrap: anywhere;
+      word-break: break-word;
     `;
 
     container.appendChild(originalDiv);
@@ -652,6 +741,96 @@
     return config.excludedSites.some(site => hostname.includes(site));
   }
 
+  function collectTopHeadlineCandidates() {
+    const host = window.location.hostname || '';
+    const isBloomberg = /(^|\.)bloomberg\.com$/i.test(host);
+
+    const selectors = isBloomberg
+      ? [
+          // Bloomberg 常见标题节点（优先）
+          'h1[data-testid*="headline"]',
+          'h1[class*="headline"]',
+          'h1[class*="Headline"]',
+          '[data-testid="headline"] h1',
+          '[data-testid*="story"] h1',
+          '[data-testid*="headline"] [role="heading"]',
+          '[role="heading"][aria-level="1"]',
+          'article h1',
+          'main h1',
+          'h1'
+        ]
+      : [
+          'h1',
+          '[data-testid*="headline"]',
+          '[data-testid*="Heading"]',
+          '[class*="headline"]',
+          '[class*="Headline"]',
+          '[role="heading"][aria-level="1"]',
+          '[role="heading"][aria-level="2"]'
+        ];
+
+    const pool = new Set();
+    selectors.forEach((sel) => {
+      document.querySelectorAll(sel).forEach((el) => pool.add(el));
+    });
+
+    const topViewport = window.innerHeight * (isBloomberg ? 1.8 : 1.2);
+
+    return Array.from(pool)
+      .filter((el) => {
+        if (!el || !el.isConnected) return false;
+        if (el.dataset?.zdfTranslated) return false;
+        const closestExcluded = el.closest('nav, header, footer, aside, [class*="menu"], [class*="breadcrumb"]');
+        if (closestExcluded) {
+          const tagName = closestExcluded.tagName?.toLowerCase();
+          // article/main 内部的 header 属于文章标题区，允许翻译（如 Bloomberg）
+          if (!(tagName === 'header' && closestExcluded.closest('article, main'))) return false;
+        }
+
+        const text = (el.innerText || '').trim();
+        if (!text || text.length < 8) return false;
+        if (isTargetLanguage(text)) return false;
+
+        const rect = el.getBoundingClientRect();
+        if (!rect || rect.width < 140 || rect.height < 20) return false;
+        if (rect.top > topViewport || rect.bottom < -40) return false;
+
+        const style = window.getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || '1') === 0) return false;
+
+        return true;
+      })
+      .sort((a, b) => {
+        const ra = a.getBoundingClientRect();
+        const rb = b.getBoundingClientRect();
+
+        // 越靠上越优先
+        if (Math.abs(ra.top - rb.top) > 4) return ra.top - rb.top;
+
+        // 同高度下，字体更大/面积更大优先
+        const sa = window.getComputedStyle(a);
+        const sb = window.getComputedStyle(b);
+        const fa = parseFloat(sa.fontSize || '0');
+        const fb = parseFloat(sb.fontSize || '0');
+        if (Math.abs(fa - fb) > 0.5) return fb - fa;
+
+        return (rb.width * rb.height) - (ra.width * ra.height);
+      })
+      .slice(0, 3);
+  }
+
+  async function translateTopHeadlinesIfNeeded() {
+    const candidates = collectTopHeadlineCandidates();
+    if (!candidates.length) return;
+
+    // 顺序翻译更稳，避免标题区抖动
+    for (const el of candidates) {
+      if (!translationActive) break;
+      if (el.dataset?.zdfTranslated) continue;
+      await translateParagraph(el);
+    }
+  }
+
   // 开始翻译（手动触发）
   async function startTranslation() {
     if (isExcludedSite()) return;
@@ -670,7 +849,12 @@
     // 标记翻译状态
     translationActive = true;
     document.body.dataset.zdfActive = 'true';
-    
+
+    // 先兜底翻译页面顶区主标题（兼容 Bloomberg 标题在正文块之外）
+    await translateTopHeadlinesIfNeeded();
+    // 补充：直接扫描所有 h1/h2，无视容器限制（兜底 Bloomberg 等站点）
+    await translateStandaloneHeadings();
+
     // 立即翻译当前可见区域的内容
     const contentBlocks = findContentBlocks();
     
@@ -2553,7 +2737,12 @@
     const contentNodes = Array.from(articleElement.querySelectorAll(
       'h1,h2,h3,h4,h5,h6,p,li,blockquote,pre,figure,img,video,table,ul,ol,.zdf-translated,[data-zdf-translated]'
     )).filter(el => {
-      if (!el || el.closest('nav,header,footer,aside,.sidebar,.menu')) return false;
+      if (!el) return false;
+      const excluded = el.closest('nav,header,footer,aside,.sidebar,.menu');
+      if (excluded) {
+        const tagName = excluded.tagName?.toLowerCase();
+        if (!(tagName === 'header' && excluded.closest('article, main'))) return false;
+      }
       const r = el.getBoundingClientRect();
       return r && r.width > 10 && r.height > 8;
     });
@@ -2721,6 +2910,16 @@
     // 1. 深克隆整个文章区域
     const clonedArticle = articleElement.cloneNode(true);
 
+    // 1.5 文本防溢出：避免超长标题/长词把截图容器横向撑宽
+    clonedArticle.querySelectorAll('h1, h2, h3, h4, h5, h6, p, li, blockquote').forEach((el) => {
+      el.style.whiteSpace = 'normal';
+      el.style.overflowWrap = 'anywhere';
+      el.style.wordBreak = 'break-word';
+      el.style.maxWidth = '100%';
+      el.style.minWidth = '0';
+      el.style.boxSizing = 'border-box';
+    });
+
     // 2. 从克隆中移除所有不需要的内容
 
     // 2a. 移除明确的非文章区域
@@ -2822,6 +3021,14 @@
         color: #1a1a1a;
         margin: 0 0 8px 0;
         line-height: 1.4;
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
       `;
       container.appendChild(titleClone);
     }

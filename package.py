@@ -44,7 +44,7 @@ def should_include(path: Path) -> bool:
 
 def create_package() -> Path:
     version = get_version()
-    zip_path = PROJECT_ROOT / f'zdftranslate-{version}.zip'
+    zip_path = PROJECT_ROOT.parent / f'zdftranslate-{version}.zip'
 
     if zip_path.exists():
         zip_path.unlink()

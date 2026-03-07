@@ -134,8 +134,8 @@ const MIN_REQUEST_INTERVAL_BY_SERVICE = {
   'microsoft-free': 120,
   libretranslate: 300,
   mymemory: 250,
-  aliyun: 800,
-  'aliyun-mt': 800,
+  aliyun: 1200,
+  'aliyun-mt': 1200,
   kimi: 60,
   zhipu: 60,
   deepseek: 60,
@@ -686,8 +686,8 @@ function setTranslationCache(key, value) {
 
 function buildContextAwareText(request) {
   const { text, service, enableAIContentAware, articleTitle, articleSummary } = request;
-  // Kimi 走极速路径：关闭上下文拼接，避免每段都携带长上下文导致明显变慢
-  if (service === 'kimi') {
+  // Kimi / Aliyun 走稳态路径：关闭上下文拼接，避免每段都携带长上下文导致限流或明显变慢
+  if (service === 'kimi' || service === 'aliyun') {
     return text;
   }
   if (!enableAIContentAware || !isLLMService(service)) {
