@@ -2402,7 +2402,10 @@
       throw new Error('未能识别有效的截图区域');
     }
 
-    const area = Math.max(1, Math.ceil(bounds.width) * Math.ceil(bounds.height));
+    const showWatermarkForScale = config.style?.showWatermark !== false;
+    const watermarkHeightPx = showWatermarkForScale ? 170 : 0;
+    // 把水印高度折算进面积限制，避免最终输出超过像素预算
+    const area = Math.max(1, Math.ceil(bounds.width) * (Math.ceil(bounds.height) + watermarkHeightPx));
     const dprScale = Math.max(2, window.devicePixelRatio || 2);
     const maxOutputPixels = 18_000_000;
     const areaLimitedScale = Math.sqrt(maxOutputPixels / area);
@@ -2843,6 +2846,7 @@
     // ★★ 终极兜底：用 articleElement.scrollHeight 确保所有 DOM 内容被捕获
     // scrollHeight 不受 overflow:hidden 影响，反映真实内容高度
     const articleScrollBottom = rootRect.top + articleElement.scrollHeight;
+    console.log('[ZDF bounds]', { endY: Math.round(endY), articleScrollBottom: Math.round(articleScrollBottom), rootRectBottom: Math.round(rootRect.bottom), translatedCount: translatedNodes.length });
     if (articleScrollBottom > endY + 40) {
       // 仅当 scrollHeight 明显超出 endY 时扩展（避免空白填充）
       endY = Math.max(endY, articleScrollBottom + 40);
