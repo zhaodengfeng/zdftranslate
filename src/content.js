@@ -2348,6 +2348,91 @@
    * 让 html2canvas 能渲染到截图中。返回 restore 函数。
    * 主要针对 Bloomberg toaster/v2/charts iframe。
    */
+  /**
+   * 把 SVG 字符串光栅化为 PNG dataURL（通过 Image + canvas）
+   * 比直接用 blob URL 更可靠，html2canvas 能正常渲染
+   */
+  function svgToPngDataUrl(svgStr, width, height) {
+    return new Promise((resolve) => {
+      const dpr = window.devicePixelRatio || 2;
+      const w = Math.ceil(width * dpr);
+      const h = Math.ceil(height * dpr);
+      const b64 = btoa(unescape(encodeURIComponent(svgStr)));
+      const svgDataUrl = `data:image/svg+xml;base64,${b64}`;
+      const tmpImg = new Image();
+      tmpImg.onload = () => {
+        try {
+          const cvs = document.createElement('canvas');
+          cvs.width = w;
+          cvs.height = h;
+          const ctx = cvs.getContext('2d');
+          ctx.drawImage(tmpImg, 0, 0, w, h);
+          resolve(cvs.toDataURL('image/png'));
+        } catch (_) {
+          resolve(null);
+        }
+      };
+      tmpImg.onerror = () => resolve(null);
+      tmpImg.src = svgDataUrl;
+    });
+  }
+
+  /**
+   * 扫描 PNG dataURL 底部的纯白行，返回裁掉空白后的实际内容高度（屏幕像素）
+   * 保留 bottomPad 行作为下边距
+   */
+  function trimBottomWhitespace(pngDataUrl, displayWidth, displayHeight, bottomPad = 8) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const cvs = document.createElement('canvas');
+          cvs.width = img.naturalWidth;
+          cvs.height = img.naturalHeight;
+          const ctx = cvs.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          const data = ctx.getImageData(0, 0, cvs.width, cvs.height).data;
+          let lastContentRow = 0;
+          for (let y = cvs.height - 1; y >= 0; y--) {
+            let hasContent = false;
+            for (let x = 0; x < cvs.width; x++) {
+              const idx = (y * cvs.width + x) * 4;
+              const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+              if (r < 248 || g < 248 || b < 248) { hasContent = true; break; }
+            }
+            if (hasContent) { lastContentRow = y; break; }
+          }
+          // 把画布坐标换算回屏幕像素
+          const scaleY = displayHeight / cvs.height;
+          const trimmedH = Math.ceil((lastContentRow + 1 + bottomPad) * scaleY);
+          resolve(Math.min(trimmedH, displayHeight));
+        } catch (_) {
+          resolve(displayHeight);
+        }
+      };
+      img.onerror = () => resolve(displayHeight);
+      img.src = pngDataUrl;
+    });
+  }
+
+  /**
+   * 等待 iframe 内部出现带有实际内容的 SVG（有 path/rect/circle 等绘图元素）
+   * 最多等 maxMs 毫秒，每 checkInterval 轮询一次
+   */
+  async function waitForIframeSvgContent(iframeDoc, maxMs = 4000, checkInterval = 200) {
+    const deadline = Date.now() + maxMs;
+    while (Date.now() < deadline) {
+      const svg = iframeDoc.querySelector('svg');
+      if (svg) {
+        // 判断 SVG 是否已有实际绘图内容
+        const hasContent = svg.querySelector('path, rect, circle, line, polyline, polygon, text, g[transform]');
+        if (hasContent) return svg;
+      }
+      await new Promise(r => setTimeout(r, checkInterval));
+    }
+    return iframeDoc.querySelector('svg') || null;
+  }
+
   async function prepareIframeChartsForCapture() {
     const iframes = Array.from(document.querySelectorAll('iframe'));
     const replacements = [];
@@ -2358,57 +2443,88 @@
       if (rect.width < 60 || rect.height < 60) continue;
 
       try {
+        // 先把 iframe 滚到视口，触发懒加载
+        iframe.scrollIntoView({ behavior: 'instant', block: 'center' });
+        await new Promise(r => setTimeout(r, 100));
+
         const iframeDoc = iframe.contentDocument;
-        if (!iframeDoc || iframeDoc.readyState === 'loading') continue;
+        if (!iframeDoc) continue;
 
-        let dataUrl = null;
-        let naturalW = rect.width;
-        let naturalH = rect.height;
+        let pngDataUrl = null;
 
-        // 优先处理 SVG 图表
-        const svg = iframeDoc.querySelector('svg');
+        // 等 SVG 内容真正渲染完
+        const svg = await waitForIframeSvgContent(iframeDoc);
+
+        let imgH = rect.height; // img 最终高度（px），稍后用裁白逻辑精调
+
         if (svg) {
-          // 注入 xmlns 防止序列化失败
           if (!svg.getAttribute('xmlns')) {
             svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
           }
+
+          // 优先用 viewBox 属性拿完整坐标空间（SVG 图表通常有 viewBox）
+          let svgNativeW = 0, svgNativeH = 0;
+          const vb = svg.getAttribute('viewBox');
+          if (vb) {
+            const parts = vb.trim().split(/[\s,]+/);
+            if (parts.length === 4) {
+              svgNativeW = parseFloat(parts[2]);
+              svgNativeH = parseFloat(parts[3]);
+            }
+          }
+          // 退而求其次：scrollWidth/scrollHeight，再退：rect
+          if (!svgNativeW || !svgNativeH) {
+            svgNativeW = iframeDoc.documentElement.scrollWidth || rect.width;
+            svgNativeH = iframeDoc.documentElement.scrollHeight || rect.height;
+          }
+
+          // 保持宽度与 iframe 视觉宽度一致，高度等比缩放
+          const scale = rect.width / svgNativeW;
+          const renderH = Math.ceil(svgNativeH * scale);
+          svg.setAttribute('width', rect.width);
+          svg.setAttribute('height', renderH);
           const svgStr = new XMLSerializer().serializeToString(svg);
-          const svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
-          dataUrl = URL.createObjectURL(svgBlob);
-          const svgRect = svg.getBoundingClientRect();
-          if (svgRect.width > 0) naturalW = svgRect.width;
-          if (svgRect.height > 0) naturalH = svgRect.height;
+          pngDataUrl = await svgToPngDataUrl(svgStr, rect.width, renderH);
+          if (pngDataUrl) {
+            // 扫描 PNG 底部纯白行，精准裁掉 viewBox 末尾的空白
+            imgH = await trimBottomWhitespace(pngDataUrl, rect.width, renderH);
+          }
         } else {
           // 尝试 canvas
           const cnv = iframeDoc.querySelector('canvas');
           if (cnv) {
-            try { dataUrl = cnv.toDataURL(); } catch (_) {}
-            if (dataUrl) {
-              naturalW = cnv.width || naturalW;
-              naturalH = cnv.height || naturalH;
-            }
+            try { pngDataUrl = cnv.toDataURL('image/png'); } catch (_) {}
           }
         }
 
-        if (!dataUrl) continue;
+        if (!pngDataUrl) continue;
 
         const img = document.createElement('img');
-        img.src = dataUrl;
-        img.style.cssText = `display:block;width:${rect.width}px;height:${rect.height}px;max-width:100%;`;
+        img.src = pngDataUrl;
+        img.style.cssText = `display:block;width:${rect.width}px;height:${imgH}px;max-width:100%;`;
         img.setAttribute('data-zdf-chart-placeholder', '1');
+
+        // 等图片真正加载好再替换
+        await new Promise((res) => {
+          if (img.complete && img.naturalWidth > 0) { res(); return; }
+          img.onload = res;
+          img.onerror = res;
+          setTimeout(res, 3000);
+        });
+
         iframe.parentNode.insertBefore(img, iframe);
-        iframe.style.visibility = 'hidden';
-        replacements.push({ iframe, img, dataUrl });
+        // display:none 完全移出布局流，避免 visibility:hidden 留下空白占位
+        iframe.style.display = 'none';
+        replacements.push({ iframe, img });
       } catch (_) {
         // 跨域或访问受限，跳过
       }
     }
 
     return function restoreIframeCharts() {
-      for (const { iframe, img, dataUrl } of replacements) {
-        iframe.style.visibility = '';
+      for (const { iframe, img } of replacements) {
+        iframe.style.display = '';
         img.remove();
-        if (dataUrl.startsWith('blob:')) URL.revokeObjectURL(dataUrl);
       }
     };
   }
@@ -2488,6 +2604,12 @@
     await prepareImagesForCapture();
     // 把同源 iframe 图表（Bloomberg toaster charts 等）转为 img，html2canvas 可渲染
     const restoreIframeCharts = await prepareIframeChartsForCapture();
+
+    // iframe 替换后高度可能变化，重新计算截图边界确保捕获完整内容
+    const boundsAfter = getArticleCaptureBounds(articleElement);
+    if (boundsAfter && boundsAfter.height > bounds.height) {
+      bounds = boundsAfter;
+    }
 
     const canvas = await html2canvas(document.body, {
       useCORS: true,

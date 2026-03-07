@@ -7,7 +7,7 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 
 ## Latest Release
 
-- **Version:** `26.3.5`
+- **Version:** `26.3.7`
 
 ## Features
 
@@ -30,7 +30,7 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 
 ### Install from release package
 
-1. Download and unzip `zdftranslate-26.3.5.zip`
+1. Download and unzip `zdftranslate-26.3.7.zip`
 2. Open `chrome://extensions/`
 3. Enable **Developer mode**
 4. Click **Load unpacked**
