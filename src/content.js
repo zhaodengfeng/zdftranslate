@@ -189,10 +189,13 @@
   // 直接翻译游离在内容块之外的 h1/h2 标题（兼容 Bloomberg 等站点）
   async function translateStandaloneHeadings() {
     const allH1 = Array.from(document.querySelectorAll('h1, h2'));
+    // 常见导航/栏目标签，不翻译
+    const SKIP_HEADINGS = /^(most read|trending|top stories|related|newsletter|sign up|subscribe|watch|listen|more from|latest|breaking|editors? pick|popular|sponsored|advertisement|also read|read more|see also|up next)$/i;
     const headings = allH1.filter(h => {
       if (h.dataset?.zdfTranslated) return false;
       const text = (h.innerText || '').trim();
       if (!text || text.length < 10 || isTargetLanguage(text)) return false;
+      if (SKIP_HEADINGS.test(text)) return false;
       const rect = h.getBoundingClientRect();
       if (!rect || rect.width < 100 || rect.height < 8) return false;
       // 只处理视口附近的标题（首屏或稍微往下）
