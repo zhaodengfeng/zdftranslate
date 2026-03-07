@@ -2405,8 +2405,8 @@
       throw new Error('未能识别有效的截图区域');
     }
 
-    const showWatermarkForScale = config.style?.showWatermark !== false;
-    const watermarkHeightPx = showWatermarkForScale ? 170 : 0;
+    const showWatermark = config.style?.showWatermark !== false;
+    const watermarkHeightPx = showWatermark ? 170 : 0;
     // 把水印高度折算进面积限制，避免最终输出超过像素预算
     const area = Math.max(1, Math.ceil(bounds.width) * (Math.ceil(bounds.height) + watermarkHeightPx));
     const dprScale = Math.max(2, window.devicePixelRatio || 2);
@@ -2442,7 +2442,6 @@
       }
     });
 
-    const showWatermark = config.style?.showWatermark !== false;
     const watermarkHeight = showWatermark ? 170 : 0;
     const totalCanvas = document.createElement('canvas');
     totalCanvas.width = canvas.width;
