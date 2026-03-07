@@ -2882,6 +2882,16 @@
       }
     }
 
+    // 标题优先：分位数可能把超宽标题当离群值裁掉，这里强制确保标题完整
+    if (titleEl) {
+      const tr = titleEl.getBoundingClientRect();
+      if (tr && tr.width > 80 && tr.height > 16) {
+        left = Math.min(left, Math.max(0, tr.left - 12));
+        const docW = Math.max(document.documentElement.clientWidth, document.documentElement.scrollWidth);
+        right = Math.max(right, Math.min(docW, tr.right + 12));
+      }
+    }
+
     // 保底与边界修正
     const top = Math.max(0, Math.min(startY, endY - 50));
     if (endY <= top + 20) endY = top + Math.max(260, rootRect.height * 0.7);
