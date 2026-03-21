@@ -352,9 +352,9 @@
       return { batchSize: 1, concurrency: 1 };
     }
 
-    // Kimi 提速策略：小批量合并，显著减少请求次数
+    // Kimi 提速策略：小批量合并，减少请求次数（降低批量大小以避免长文超限）
     if (service === 'kimi') {
-      return { batchSize: 4, concurrency: 2 };
+      return { batchSize: 2, concurrency: 2 };
     }
 
     // 其他 LLM/API 服务优先"边翻边出"，避免长时间无反馈后整页突变
@@ -387,6 +387,11 @@
     }
   }
 
+  // 单段最大字符数：超过此长度的段落拆分为更小的块逐段翻译
+  const MAX_SINGLE_PARAGRAPH_LENGTH = 3000;
+  // 批量合并最大字符数：合并后的文本超过此限制则回退为逐段翻译
+  const MAX_BATCH_COMBINED_LENGTH = 4000;
+
   // 批量翻译并立即显示结果（流水线模式）
   async function translateBatchWithDisplay(elements, batchIndex) {
     if (elements.length === 0) return;
@@ -398,6 +403,15 @@
     const texts = elements.map(el => el.innerText.trim());
     const separator = '\n\n---PARA_BREAK---\n\n';
     const combinedText = texts.join(separator);
+
+    // 合并后文本过长时回退为逐段翻译，避免超过 API 限制
+    if (combinedText.length > MAX_BATCH_COMBINED_LENGTH) {
+      for (const el of elements) {
+        if (!translationActive) break;
+        await translateParagraph(el);
+      }
+      return;
+    }
 
     // 标记所有元素为已翻译（防止重复）
     elements.forEach(el => el.dataset.zdfTranslated = 'true');
@@ -528,6 +542,47 @@
     return chineseChars && chineseChars.length > text.length * 0.3;
   }
 
+  // 将超长文本按句子边界拆分为多个块
+  function splitLongText(text, maxLength = MAX_SINGLE_PARAGRAPH_LENGTH) {
+    if (text.length <= maxLength) return [text];
+
+    const chunks = [];
+    let current = '';
+    // 按句号、问号、感叹号、换行等拆分
+    const sentences = text.split(/(?<=[.!?。！？\n]+)\s*/);
+
+    for (const sentence of sentences) {
+      if (current.length + sentence.length > maxLength && current) {
+        chunks.push(current.trim());
+        current = sentence;
+      } else {
+        current += (current ? ' ' : '') + sentence;
+      }
+    }
+    if (current) chunks.push(current.trim());
+
+    // 如果有单个句子就超过 maxLength，进一步按逗号/分号拆分
+    const result = [];
+    for (const chunk of chunks) {
+      if (chunk.length <= maxLength) {
+        result.push(chunk);
+      } else {
+        let sub = '';
+        const clauses = chunk.split(/(?<=[,;，；])\s*/);
+        for (const clause of clauses) {
+          if (sub.length + clause.length > maxLength && sub) {
+            result.push(sub.trim());
+            sub = clause;
+          } else {
+            sub += (sub ? ' ' : '') + clause;
+          }
+        }
+        if (sub) result.push(sub.trim());
+      }
+    }
+    return result.filter(Boolean);
+  }
+
   // 翻译段落
   async function translateParagraph(element) {
     const originalText = element.innerText?.trim();
@@ -536,7 +591,21 @@
     element.dataset.zdfTranslated = 'true';
 
     try {
-      const translatedText = await translateText(originalText);
+      let translatedText;
+
+      // 超长段落拆分翻译后拼接
+      if (originalText.length > MAX_SINGLE_PARAGRAPH_LENGTH) {
+        const chunks = splitLongText(originalText);
+        const translatedChunks = [];
+        for (const chunk of chunks) {
+          if (!translationActive) return;
+          const translated = await translateText(chunk);
+          translatedChunks.push(translated);
+        }
+        translatedText = translatedChunks.join('');
+      } else {
+        translatedText = await translateText(originalText);
+      }
 
       if (!translationActive) {
         return;
@@ -2544,31 +2613,58 @@
         return; // URL 解析失败，跳过
       }
 
-      // 尝试设置 crossOrigin
-      if (img.crossOrigin !== 'anonymous') {
-        img.crossOrigin = 'anonymous';
-      }
+      // 跳过不可见的图片（宽高为0或 display:none）
+      if (img.offsetWidth === 0 && img.offsetHeight === 0) return;
 
-      // 如果图片还没加载完，等待它加载
-      if (!img.complete) {
-        promises.push(new Promise((resolve) => {
-          const onLoad = () => {
-            img.removeEventListener('load', onLoad);
-            img.removeEventListener('error', onLoad);
-            resolve();
-          };
-          img.addEventListener('load', onLoad);
-          img.addEventListener('error', onLoad);
-          // 3 秒超时
-          setTimeout(resolve, 3000);
-        }));
-      }
+      // 通过 Service Worker 代理获取图片，避免 CORS 问题
+      // Service Worker 有 <all_urls> 权限，可以直接 fetch 任何图片
+      const originalSrc = img.src;
+      promises.push(
+        new Promise((resolve) => {
+          chrome.runtime.sendMessage(
+            { action: 'fetchImageAsDataUrl', url: originalSrc },
+            (response) => {
+              if (chrome.runtime.lastError || !response?.dataUrl) {
+                // 代理失败，回退到设置 crossOrigin（可能会丢失图片，但总比什么都不做好）
+                if (img.crossOrigin !== 'anonymous') {
+                  img.crossOrigin = 'anonymous';
+                }
+                resolve();
+                return;
+              }
+              // 替换为 data URL，html2canvas 可以正常渲染
+              img.src = response.dataUrl;
+              // 保存原始 src 以便后续恢复
+              img.dataset.zdfOriginalSrc = originalSrc;
+              if (img.complete) {
+                resolve();
+              } else {
+                const onDone = () => {
+                  img.removeEventListener('load', onDone);
+                  img.removeEventListener('error', onDone);
+                  resolve();
+                };
+                img.addEventListener('load', onDone);
+                img.addEventListener('error', onDone);
+                setTimeout(resolve, 5000);
+              }
+            }
+          );
+        })
+      );
     });
 
-    // 仅等待 img 标签的处理，不再扫描背景图以提升性能
     await Promise.all(promises);
-    // 额外等待一小段时间让 CORS 设置生效
-    await new Promise(r => setTimeout(r, 200));
+    // 短暂等待确保渲染更新
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  // 截图完成后恢复被替换为 data URL 的图片原始 src
+  function restoreOriginalImageSrcs() {
+    document.querySelectorAll('img[data-zdf-original-src]').forEach(img => {
+      img.src = img.dataset.zdfOriginalSrc;
+      delete img.dataset.zdfOriginalSrc;
+    });
   }
 
   async function buildArticleCaptureCanvas() {
@@ -2625,14 +2721,8 @@
       height: Math.max(1, Math.ceil(bounds.height)),
       windowWidth: Math.max(document.documentElement.scrollWidth, document.body.scrollWidth),
       windowHeight: Math.max(document.documentElement.scrollHeight, document.body.scrollHeight),
-      onclone: (clonedDoc) => {
-        // 在克隆的文档中也处理图片
-        const images = clonedDoc.querySelectorAll('img');
-        images.forEach(img => {
-          if (img.crossOrigin !== 'anonymous') {
-            img.crossOrigin = 'anonymous';
-          }
-        });
+      onclone: (_clonedDoc) => {
+        // 图片已通过 Service Worker 代理转为 data URL，无需额外 CORS 处理
       }
     });
 
@@ -2644,8 +2734,9 @@
 
     totalCtx.drawImage(canvas, 0, 0);
 
-    // html2canvas 已完成，立即恢复 iframe（在返回 canvas 前）
+    // html2canvas 已完成，立即恢复 iframe 和被代理替换的图片
     restoreIframeCharts();
+    restoreOriginalImageSrcs();
 
     if (showWatermark) {
       await drawWatermarkBar(totalCtx, totalCanvas.width, canvas.height, watermarkHeight);
@@ -2670,6 +2761,8 @@
       await downloadOptimizedCanvas(totalCanvas, baseName);
     } catch (error) {
       console.error('[ZDFTranslate] 截图失败:', error);
+      // 确保异常时也恢复被替换的图片
+      restoreOriginalImageSrcs();
       handleExportError(error, 'screenshot');
     } finally {
       if (captureBtn) {
@@ -2816,6 +2909,7 @@
       pdf.save(`${baseName}.pdf`);
     } catch (error) {
       console.error('[ZDFTranslate] PDF导出失败:', error);
+      restoreOriginalImageSrcs();
       handleExportError(error, 'pdf');
     } finally {
       if (pdfBtn) {

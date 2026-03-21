@@ -662,7 +662,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     return true;
   }
-  
+
+  // 图片代理：通过 Service Worker 获取跨域图片并转为 data URL
+  if (request.action === 'fetchImageAsDataUrl') {
+    (async () => {
+      try {
+        const response = await fetch(request.url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blob = await response.blob();
+        const reader = new FileReader();
+        const dataUrl = await new Promise((resolve, reject) => {
+          reader.onloadend = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        sendResponse({ dataUrl });
+      } catch (error) {
+        sendResponse({ error: error.message });
+      }
+    })();
+    return true;
+  }
+
   return true;
 });
 
@@ -1088,7 +1109,7 @@ async function translateWithOpenRouter(text, targetLang, sourceLang, modelOverri
           model,
           targetLang,
           text,
-          maxTokens: 2000,
+          maxTokens: 8000,
           headers: {
             'HTTP-Referer': 'https://github.com/zdf-translate',
             'X-Title': 'ZDFTranslate',
@@ -1145,7 +1166,7 @@ async function translateWithCustomService(serviceId, text, targetLang, sourceLan
                 },
                 body: JSON.stringify({
                     model: model,
-                    max_tokens: 2000,
+                    max_tokens: 8000,
                     system: `You are a professional translator. Translate the following text to ${targetLangName}. Only return the translated text, no explanations.`,
                     messages: [
                         {
@@ -1172,7 +1193,7 @@ async function translateWithCustomService(serviceId, text, targetLang, sourceLan
           model,
           targetLang,
           text,
-          maxTokens: 2000,
+          maxTokens: 8000,
         });
     }
 }

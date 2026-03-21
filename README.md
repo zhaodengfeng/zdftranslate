@@ -7,7 +7,12 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 
 ## Latest Release
 
-- **Version:** `26.3.7`
+- **Version:** `26.3.21`
+
+### v26.3.21 Changes
+
+- **Fix: Screenshot image loss on Economist and similar sites** — Cross-origin images (e.g. Economist CDN) were lost during screenshots because setting `crossOrigin='anonymous'` on already-loaded images caused re-fetch failures. Now uses Service Worker proxy to fetch images as data URLs, bypassing CORS restrictions entirely.
+- **Fix: Long article translation failures** — Long articles could trigger API errors ("exceeds limit") due to oversized combined text and insufficient output token budget. Added automatic text length checking with fallback to per-paragraph translation, smart splitting for oversized paragraphs (>3000 chars), and increased `max_tokens` from 2000 to 8000 for LLM providers.
 
 ## Features
 
@@ -30,7 +35,7 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 
 ### Install from release package
 
-1. Download and unzip `zdftranslate-26.3.7.zip`
+1. Download and unzip `zdftranslate-26.3.21.zip`
 2. Open `chrome://extensions/`
 3. Enable **Developer mode**
 4. Click **Load unpacked**
