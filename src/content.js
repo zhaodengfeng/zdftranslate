@@ -3785,11 +3785,157 @@
     }
   };
 
-  // 页面加载完成后创建悬浮按钮
+  // ========== 阅读模式（Reader Mode） ==========
+  // 针对支持的新闻站点，提供干净阅读+翻译+导出功能
+
+  /**
+   * 检测当前页面是否匹配某个适配器
+   * @returns {Object|null} 匹配的适配器对象
+   */
+  function detectReaderAdapter() {
+    if (!window.ZDFAdapters || !window.ZDFAdapters.length) return null;
+    const url = location.href;
+    for (const adapter of window.ZDFAdapters) {
+      if (adapter.matches(url)) return adapter;
+    }
+    return null;
+  }
+
+  // 阅读模式按钮
+  let readerBtnEl = null;
+
+  function createReaderButton() {
+    if (document.getElementById('zdf-reader-btn')) return;
+
+    const btn = document.createElement('div');
+    btn.id = 'zdf-reader-btn';
+    btn.className = 'zdf-reader-entry-btn';
+    btn.title = '阅读模式：干净排版 + 翻译 + 导出';
+    btn.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        <path d="M8 7h8M8 11h6"/>
+      </svg>
+    `;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openReaderMode();
+    });
+    document.body.appendChild(btn);
+    readerBtnEl = btn;
+  }
+
+  function removeReaderButton() {
+    const btn = document.getElementById('zdf-reader-btn');
+    if (btn) btn.remove();
+    readerBtnEl = null;
+  }
+
+  /**
+   * 打开阅读模式
+   */
+  async function openReaderMode() {
+    const adapter = detectReaderAdapter();
+    if (!adapter) return;
+
+    // 提取文章内容
+    let article;
+    try {
+      article = adapter.extract(document);
+    } catch (err) {
+      console.error('[ZDFReader] extract failed:', err);
+      alert('文章提取失败: ' + err.message);
+      return;
+    }
+
+    if (!article.title && article.paragraphs.length === 0) {
+      alert('未能提取到文章内容，请确认页面已完全加载');
+      return;
+    }
+
+    // 隐藏阅读模式入口按钮
+    removeReaderButton();
+
+    // 渲染阅读视图
+    window.ZDFReader.render(article, {
+      onTranslate: handleReaderTranslate,
+      onExportImage: handleReaderExportImage,
+      onExportPdf: handleReaderExportPdf,
+    });
+  }
+
+  /**
+   * 阅读模式翻译回调
+   */
+  async function handleReaderTranslate(article) {
+    window.ZDFReader.setTranslating(true);
+    try {
+      await reloadConfig();
+      const translations = await window.ZDFReaderBridge.batchTranslateParagraphs(article, {
+        targetLang: config.targetLang,
+        sourceLang: config.sourceLang,
+        translationService: config.translationService,
+        selectedModel: config.selectedModels?.[config.translationService] || '',
+      });
+      window.ZDFReader.applyTranslations(translations);
+    } catch (err) {
+      console.error('[ZDFReader] translate failed:', err);
+      alert('翻译失败: ' + err.message);
+    } finally {
+      window.ZDFReader.setTranslating(false);
+    }
+  }
+
+  /**
+   * 阅读模式导出图片回调
+   */
+  async function handleReaderExportImage() {
+    try {
+      await window.ZDFReaderBridge.exportReaderAsImage();
+    } catch (err) {
+      console.error('[ZDFReader] export image failed:', err);
+      alert('导出图片失败: ' + err.message);
+    }
+  }
+
+  /**
+   * 阅读模式导出 PDF 回调
+   */
+  async function handleReaderExportPdf() {
+    try {
+      await window.ZDFReaderBridge.exportReaderAsPdf();
+    } catch (err) {
+      console.error('[ZDFReader] export PDF failed:', err);
+      alert('导出PDF失败: ' + err.message);
+    }
+  }
+
+  // 监听阅读模式关闭事件，恢复入口按钮
+  const _origDestroyReader = window.ZDFReader.destroy;
+  window.ZDFReader.destroy = function () {
+    _origDestroyReader();
+    // 重新检测是否需要显示入口按钮
+    const adapter = detectReaderAdapter();
+    if (adapter) createReaderButton();
+  };
+
+  // 页面加载完成后创建悬浮按钮 + 检测阅读模式
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', createFloatingButton);
+    document.addEventListener('DOMContentLoaded', () => {
+      createFloatingButton();
+      // 延迟检测阅读模式，确保页面 DOM 完整
+      setTimeout(() => {
+        const adapter = detectReaderAdapter();
+        if (adapter) createReaderButton();
+      }, 1000);
+    });
   } else {
     createFloatingButton();
+    setTimeout(() => {
+      const adapter = detectReaderAdapter();
+      if (adapter) createReaderButton();
+    }, 1000);
   }
 
 })();

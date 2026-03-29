@@ -1,0 +1,316 @@
+/* ZDFTranslate - Reader Mode Styles */
+
+/* === Overlay === */
+#zdf-reader-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  background: rgba(0, 0, 0, 0);
+  transition: background 0.3s ease;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow: hidden;
+}
+
+#zdf-reader-overlay.zdf-reader-visible {
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* === Container === */
+.zdf-reader-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.zdf-reader-visible .zdf-reader-container {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* === Toolbar === */
+.zdf-reader-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 20px;
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+  flex-shrink: 0;
+  gap: 12px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+}
+
+.zdf-reader-toolbar-left,
+.zdf-reader-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zdf-reader-toolbar-sep {
+  color: #ddd;
+  font-size: 14px;
+}
+
+.zdf-reader-source-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 3px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+/* === Buttons === */
+.zdf-reader-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: #444;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.zdf-reader-btn:hover {
+  background: #f5f5f5;
+  border-color: #bbb;
+}
+
+.zdf-reader-btn-mode {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.zdf-reader-btn-mode.zdf-reader-btn-active {
+  background: #1a1a2e;
+  color: #fff;
+  border-color: #1a1a2e;
+}
+
+.zdf-reader-btn-translate {
+  background: #1a1a2e;
+  color: #fff;
+  border-color: #1a1a2e;
+}
+
+.zdf-reader-btn-translate:hover {
+  background: #2d2d4a;
+}
+
+.zdf-reader-btn-loading {
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.zdf-reader-btn-close {
+  padding: 6px;
+  border: none;
+  background: transparent;
+  color: #888;
+}
+
+.zdf-reader-btn-close:hover {
+  background: #f0f0f0;
+  color: #333;
+}
+
+/* === Spinner === */
+.zdf-reader-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: zdf-reader-spin 0.6s linear infinite;
+}
+
+@keyframes zdf-reader-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* === Scrollable Body === */
+.zdf-reader-body {
+  flex: 1;
+  overflow-y: auto;
+  background: #fff;
+  -webkit-overflow-scrolling: touch;
+}
+
+.zdf-reader-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.zdf-reader-body::-webkit-scrollbar-thumb {
+  background: #d0d0d0;
+  border-radius: 3px;
+}
+
+/* === Article === */
+.zdf-reader-article {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 24px 60px;
+}
+
+/* === Header === */
+.zdf-reader-header {
+  margin-bottom: 32px;
+}
+
+.zdf-reader-time {
+  display: block;
+  font-size: 13px;
+  color: #888;
+  margin-bottom: 12px;
+  letter-spacing: 0.2px;
+}
+
+.zdf-reader-title {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #111;
+  margin: 0 0 16px;
+  letter-spacing: -0.3px;
+}
+
+.zdf-reader-subtitle {
+  font-size: 18px;
+  line-height: 1.5;
+  color: #555;
+  margin: 0 0 16px;
+  font-weight: 400;
+}
+
+.zdf-reader-author {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+/* === Cover Image === */
+.zdf-reader-cover {
+  margin: 0 -24px 32px;
+  overflow: hidden;
+}
+
+.zdf-reader-cover img {
+  width: 100%;
+  height: auto;
+  display: block;
+  max-height: 420px;
+  object-fit: cover;
+}
+
+/* === Paragraphs === */
+.zdf-reader-paragraph {
+  margin-bottom: 20px;
+}
+
+.zdf-reader-original {
+  font-size: 17px;
+  line-height: 1.75;
+  color: #222;
+  margin: 0;
+  font-family: Georgia, "Times New Roman", Times, serif;
+}
+
+.zdf-reader-translated {
+  font-size: 16px;
+  line-height: 1.85;
+  color: #555;
+  margin: 8px 0 0;
+  padding: 10px 14px;
+  background: #f8f9fa;
+  border-left: 3px solid #1a1a2e;
+  border-radius: 0 4px 4px 0;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+/* 仅译文模式 */
+.zdf-reader-translated-only .zdf-reader-translated {
+  font-size: 17px;
+  color: #222;
+  background: transparent;
+  border-left: none;
+  padding: 0;
+  margin: 0;
+  font-family: Georgia, "Times New Roman", "PingFang SC", "Microsoft YaHei", serif;
+}
+
+/* === Inline Images === */
+.zdf-reader-inline-image {
+  margin: 28px -24px;
+}
+
+.zdf-reader-inline-image img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.zdf-reader-inline-image figcaption {
+  font-size: 13px;
+  color: #999;
+  padding: 8px 24px 0;
+  line-height: 1.4;
+}
+
+/* === Footer === */
+.zdf-reader-footer {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 20px 24px 40px;
+  border-top: 1px solid #eee;
+}
+
+.zdf-reader-footer-source {
+  font-size: 13px;
+  color: #aaa;
+}
+
+.zdf-reader-footer-source a {
+  color: #666;
+  text-decoration: none;
+}
+
+.zdf-reader-footer-source a:hover {
+  text-decoration: underline;
+}
+
+/* === Progress Indicator === */
+.zdf-reader-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: #1a1a2e;
+  transition: width 0.3s ease;
+  z-index: 2147483648;
+}
+
+/* === Print === */
+@media print {
+  .zdf-reader-toolbar {
+    display: none !important;
+  }
+  #zdf-reader-overlay {
+    position: static;
+    background: #fff;
+  }
+  .zdf-reader-body {
+    overflow: visible;
+  }
+}
