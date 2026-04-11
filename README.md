@@ -1,6 +1,6 @@
 # ZDFTranslate
 
-简洁高效的双语对照网页翻译插件，支持多种 AI 翻译服务，免费开箱即用。
+A simple and efficient bilingual webpage translation Chrome extension. Supports multiple AI translation services, free and ready to use out of the box.
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/dnjhjgnofonkmcbgbdlfmhfpfjfidfae?color=4285F4&label=Chrome%20Web%20Store&logo=google-chrome&logoColor=white)](https://chrome.google.com/webstore/detail/dnjhjgnofonkmcbgbdlfmhfpfjfidfae)
 [![License](https://img.shields.io/github/license/zhaodengfeng/zdftranslate?color=blue)](LICENSE)
@@ -11,17 +11,17 @@
 
 ## Features
 
-- **免费开箱即用** — 内置 Microsoft Translator (Free) 与 Google Translate (Free)，无需配置 API Key
-- **双语对照 / 纯译文** — 两种显示模式随心切换，译文与原文段落一一对应
-- **顺序渐进翻译** — 从页面标题到正文按文档流逐段翻译，配合呼吸闪烁动效，直观感知进度
-- **多服务商支持** — 支持 DeepL、OpenAI、Claude、Gemini、Kimi、智谱 GLM、阿里百炼 (Qwen)、DeepSeek、OpenRouter
-- **自定义服务** — 添加任意兼容 OpenAI (`/v1/chat/completions`) 或 Anthropic (`/v1/messages`) 格式的 API 端点
-- **Prompt 预设** — 通用、新闻、学术、技术、文学、社交媒体六种风格（仅对 LLM 服务生效）
-- **AI 内容感知** — 可选将文章标题/摘要作为上下文传入，提升翻译准确度
-- **远程模型列表** — 一键获取服务商最新可用模型，支持自定义模型名
-- **划词翻译** — 选中文本后通过右键菜单或悬浮按钮快速翻译
-- **自定义样式** — 可调整译文颜色、字号、行间距与背景高亮
-- **服务图标识别** — 翻译服务与模型选择器均带有高辨识度品牌图标
+- **Free Out of the Box** — Built-in Microsoft Translator (Free) and Google Translate (Free), no API key required
+- **Bilingual / Replace Mode** — Switch between side-by-side bilingual display and pure translation view, with paragraphs perfectly aligned
+- **Top-to-Bottom Sequential Translation** — Translates the page from headings to body text in document-flow order, with a soft breathing pulse animation to show progress
+- **Multiple Providers** — Supports DeepL, OpenAI, Claude, Gemini, Kimi, Zhipu GLM, Alibaba Bailian (Qwen), DeepSeek, and OpenRouter
+- **Custom Services** — Add any OpenAI-compatible (`/v1/chat/completions`) or Anthropic-compatible (`/v1/messages`) API endpoint
+- **Prompt Presets** — General, News, Academic, Technical, Literary, and Social Media presets (LLM services only)
+- **AI Content Awareness** — Optionally pass page title and summary as context for more accurate translations
+- **Remote Model List** — One-click fetch of the latest available models from providers, with support for custom model names
+- **Selection Translation** — Right-click or use the floating button to translate selected text instantly
+- **Customizable Styles** — Adjust translation color, font size, line spacing, and background highlight
+- **Provider Brand Icons** — Service and model selectors feature high-recognition brand-style icons
 
 ## Install
 
@@ -54,21 +54,6 @@ Click the extension icon → **Settings** to configure:
 - Choose a Prompt preset and enable AI content awareness
 - Add custom API endpoints
 - Adjust display styles (color, font size, line spacing)
-
-## API Keys
-
-| Provider | Get API Key | Notes |
-|----------|------------|-------|
-| DeepL | [DeepL API](https://www.deepl.com/pro-api) → Sign up | Free tier available (keys ending in `:fx`) |
-| OpenAI | [Platform](https://platform.openai.com/api-keys) → Create API Key | Paid, usage-based |
-| Claude | [Anthropic Console](https://console.anthropic.com/settings/keys) | Paid, usage-based |
-| Gemini | [Google AI Studio](https://aistudio.google.com/apikey) | Free tier available |
-| **OpenRouter** | [OpenRouter Keys](https://openrouter.ai/keys) | Access to hundreds of models |
-| **Custom** | Any compatible provider | Supports `/v1/chat/completions` or Anthropic format |
-| Kimi | [Moonshot Platform](https://platform.moonshot.cn/) → API Keys | Free tier available |
-| Zhipu AI | [Open Platform](https://open.bigmodel.cn/) → API Keys | Free tier available |
-| DeepSeek | [DeepSeek Platform](https://platform.deepseek.com/) → API Keys | Free tier available |
-| Alibaba Cloud (Qwen) | [Bailian Platform](https://bailian.console.aliyun.com/) → API Keys | Free tier available |
 
 ## License
 
