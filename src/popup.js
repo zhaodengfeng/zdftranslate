@@ -190,7 +190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 短轮询兜底：避免极端情况下消息丢失导致状态不同步
   const statusPollingTimer = setInterval(() => {
     refreshTranslationStatus().catch(() => {});
-  }, 1200);
+  }, 3000);
 
   window.addEventListener('unload', () => {
     clearInterval(statusPollingTimer);
@@ -302,6 +302,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   async function getTabStatusFromBackground(tabId) {
     return new Promise((resolve) => {
       chrome.runtime.sendMessage({ action: 'getTabStatus', tabId }, (response) => {
+        if (chrome.runtime.lastError) {
+          resolve(false);
+          return;
+        }
         resolve(response?.isTranslated || false);
       });
     });

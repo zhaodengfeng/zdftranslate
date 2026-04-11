@@ -89,7 +89,7 @@
         action: 'setTabStatus',
         tabId,
         isTranslated: !!status
-      });
+      }, () => { /* ignore lastError */ });
     } catch (e) {
       // 忽略同步失败，避免影响页面功能
     }
@@ -103,7 +103,7 @@
         action: 'translationStatusChanged',
         tabId,
         isTranslated: !!status
-      });
+      }, () => { /* ignore lastError */ });
     } catch (e) {
       // 忽略通知失败，避免影响页面功能
     }
@@ -266,6 +266,9 @@
         maxScore = score;
         bestElement = node;
       }
+      if (score > 3000) {
+        return bestElement;
+      }
     }
 
     return bestElement;
@@ -329,7 +332,7 @@
     // 补充：查找直接包含文本的 div/section（不含子段落的文本容器）
     const textDivs = element.querySelectorAll('div, section');
     Array.from(textDivs).forEach(div => {
-      if (div.dataset.zdfTranslated) return;
+      if (div.dataset.zdfTranslated === 'true') return;
       // 跳过包含子段落的容器（避免重复翻译）
       if (div.querySelector('p, h1, h2, h3, h4, h5, h6, li, blockquote')) return;
       // 只取直接包含有意义文本的叶子 div
@@ -356,28 +359,56 @@
 
   // 根据翻译服务动态设置并发参数
   function getBatchTuning(service) {
-    // 免费公共服务更容易限流，保守一点
+    // 所有服务统一改为低并发、顺序翻译，营造"从上到下"的渐进感
     if (['microsoft-free', 'google-free'].includes(service)) {
-      return { batchSize: 3, concurrency: 2 };
+      return { batchSize: 1, concurrency: 1 };
     }
-
-    // 阿里云限流较严格：单并发最稳，避免 429
     if (service === 'aliyun') {
       return { batchSize: 1, concurrency: 1 };
     }
-
-    // Kimi 提速策略：小批量合并，显著减少请求次数
     if (service === 'kimi') {
-      return { batchSize: 4, concurrency: 2 };
+      return { batchSize: 2, concurrency: 1 };
     }
-
-    // 其他 LLM/API 服务优先"边翻边出"，避免长时间无反馈后整页突变
     if (['zhipu', 'openai', 'deepseek', 'openrouter', 'google', 'deepl'].includes(service) || String(service || '').startsWith('custom_')) {
-      return { batchSize: 1, concurrency: 2 };
+      return { batchSize: 1, concurrency: 1 };
     }
+    return { batchSize: 1, concurrency: 1 };
+  }
 
-    // 默认
-    return { batchSize: 2, concurrency: 2 };
+  // 按文档顺序收集所有待翻译候选
+  function collectTranslationCandidates() {
+    const seen = new Set();
+    const add = (el) => {
+      if (el && !seen.has(el)) {
+        seen.add(el);
+        return true;
+      }
+      return false;
+    };
+
+    const candidates = [];
+
+    // 1. 标题优先
+    document.querySelectorAll('h1, h2').forEach(el => {
+      if (shouldTranslate(el) && add(el)) candidates.push(el);
+    });
+
+    // 2. 正文段落、列表、引用等
+    document.querySelectorAll('p, h3, h4, h5, h6, li, blockquote, figcaption, td, th, dt, dd').forEach(el => {
+      if (shouldTranslate(el) && add(el)) candidates.push(el);
+    });
+
+    // 3. 叶子 div/section（直接包含文本但不含子段落）
+    document.querySelectorAll('div, section').forEach(div => {
+      if (div.querySelector('p, h1, h2, h3, h4, h5, h6, li, blockquote')) return;
+      const directText = Array.from(div.childNodes)
+        .filter(n => n.nodeType === 3)
+        .map(n => n.textContent.trim())
+        .join('');
+      if (directText.length >= 10 && shouldTranslate(div) && add(div)) candidates.push(div);
+    });
+
+    return candidates;
   }
 
   // 带并发控制的批量翻译
@@ -408,15 +439,17 @@
       return translateParagraph(elements[0]);
     }
 
-    // 批量翻译多个段落
-    const texts = elements.map(el => el.innerText.trim());
-    const separator = '\n\n---PARA_BREAK---\n\n';
-    const combinedText = texts.join(separator);
-
-    // 标记所有元素为已翻译（防止重复）
-    elements.forEach(el => el.dataset.zdfTranslated = 'true');
+    elements.forEach(el => el.classList.add('zdf-translating'));
 
     try {
+      // 批量翻译多个段落
+      const texts = elements.map(el => el.innerText.trim());
+      const separator = self.ZDF_CONSTANTS?.PARA_BREAK || '\n\n---PARA_BREAK---\n\n';
+      const combinedText = texts.join(separator);
+
+      // 标记所有元素为已翻译（防止重复）
+      elements.forEach(el => el.dataset.zdfTranslated = 'true');
+
       const translatedCombined = await translateText(combinedText);
 
       // 检查是否已取消
@@ -426,14 +459,19 @@
 
       const translatedParts = translatedCombined.split(separator);
 
+      // 若返回段落数不匹配，说明 API 未能原样保留分隔符，回退单条翻译防止错乱/漏译
+      if (translatedParts.length !== elements.length) {
+        throw new Error(`批量翻译分隔符丢失：期望 ${elements.length} 段，实际 ${translatedParts.length} 段`);
+      }
+
       // 立即显示每个翻译结果（流水线）
       elements.forEach((el, index) => {
         if (!translationActive) return;
 
-        if (translatedParts[index]) {
-          const originalText = texts[index];
-          const translatedText = translatedParts[index].trim();
+        const originalText = texts[index];
+        const translatedText = translatedParts[index].trim();
 
+        if (translatedText) {
           if (config.displayMode === 'replace') {
             insertReplaceMode(el, originalText, translatedText);
           } else {
@@ -448,23 +486,13 @@
       elements.forEach(el => {
         el.dataset.zdfTranslated = '';
       });
-      // 回退重试：Kimi 用轻并发提速，其他服务保持串行稳态
-      if (config.translationService === 'kimi') {
-        const chunks = [];
-        for (let i = 0; i < elements.length; i += 2) {
-          chunks.push(elements.slice(i, i + 2));
-        }
-        for (const chunk of chunks) {
-          if (!translationActive) break;
-          await Promise.allSettled(chunk.map(el => translateParagraph(el)));
-        }
-      } else {
-        for (const el of elements) {
-          if (!translationActive) break;
-          await translateParagraph(el);
-          await sleep(100);
-        }
+      for (const el of elements) {
+        if (!translationActive) break;
+        await translateParagraph(el);
+        await sleep(80);
       }
+    } finally {
+      elements.forEach(el => el.classList.remove('zdf-translating'));
     }
   }
 
@@ -497,7 +525,7 @@
   // 判断是否应该翻译
   function shouldTranslate(element) {
     // 已翻译的跳过
-    if (element.dataset.zdfTranslated) return false;
+    if (element.dataset.zdfTranslated === 'true') return false;
 
     // 导航/页眉/页脚/侧栏等区域不翻译，避免版式错位
     // 例外：h1/h2 元素本身就是标题，不可能是导航，直接跳过容器检查
@@ -537,6 +565,9 @@
 
   // 简单语言检测
   function isTargetLanguage(text) {
+    // 日文假名、韩文 Hangul 需优先排除，避免误判为中文而跳过翻译
+    if (/[\u3040-\u309f\u30a0-\u30ff]/.test(text)) return false;
+    if (/[\uac00-\ud7af]/.test(text)) return false;
     // 如果包含大量中文字符，认为是中文
     const chineseChars = text.match(/[\u4e00-\u9fa5]/g);
     return chineseChars && chineseChars.length > text.length * 0.3;
@@ -545,14 +576,20 @@
   // 翻译段落
   async function translateParagraph(element) {
     const originalText = element.innerText?.trim();
-    if (!originalText) return;
+    if (!originalText) {
+      element.classList.remove('zdf-translating');
+      return;
+    }
+    if (element.dataset.zdfTranslated === 'true') return;
 
+    element.classList.add('zdf-translating');
     element.dataset.zdfTranslated = 'true';
 
     try {
       const translatedText = await translateText(originalText);
 
       if (!translationActive) {
+        element.classList.remove('zdf-translating');
         return;
       }
 
@@ -565,6 +602,29 @@
       console.error('ZDFTranslate: 翻译失败 -', error.message);
       showInlineErrorToast(error?.message || '段落翻译失败');
       element.dataset.zdfTranslated = '';
+    } finally {
+      element.classList.remove('zdf-translating');
+    }
+  }
+
+  function safeRestoreHtml(element, htmlString) {
+    if (!htmlString) {
+      element.innerHTML = '';
+      return;
+    }
+    const temp = document.createElement('div');
+    temp.innerHTML = htmlString;
+    temp.querySelectorAll('script').forEach((s) => s.remove());
+    temp.querySelectorAll('*').forEach((el) => {
+      Array.from(el.attributes).forEach((attr) => {
+        if (attr.name.toLowerCase().startsWith('on')) {
+          el.removeAttribute(attr.name);
+        }
+      });
+    });
+    element.innerHTML = '';
+    while (temp.firstChild) {
+      element.appendChild(temp.firstChild);
     }
   }
 
@@ -576,7 +636,7 @@
     if (element.dataset.zdfOriginalHtml) {
       const hasWrapped = element.querySelector('.zdf-translation-container');
       if (hasWrapped) {
-        element.innerHTML = element.dataset.zdfOriginalHtml;
+        safeRestoreHtml(element, element.dataset.zdfOriginalHtml);
       }
     }
   }
@@ -590,18 +650,21 @@
       element.dataset.zdfOriginalText = original;
     }
 
-    // 构造优雅的中文排版容器
-    const container = document.createElement('div');
+    // <p> 不能嵌套 <div>，改用 <span display:block>
+    const wrapperTag = element.tagName === 'P' ? 'span' : 'div';
+    const container = document.createElement(wrapperTag);
     container.className = 'zdf-translation-container zdf-mode-replace';
+    container.style.display = 'block';
+    container.style.width = '100%';
 
     // 隐藏原文（不删除，以便恢复或对比）
-    const originalDiv = document.createElement('div');
+    const originalDiv = document.createElement(wrapperTag === 'span' ? 'span' : 'div');
     originalDiv.className = 'zdf-original';
-    originalDiv.innerHTML = element.dataset.zdfOriginalHtml;
+    safeRestoreHtml(originalDiv, element.dataset.zdfOriginalHtml);
     originalDiv.style.display = 'none'; // 关键：隐藏原文
 
     // 译文显示优化：字号稍大，行高舒适，仿书页效果
-    const translatedDiv = document.createElement('div');
+    const translatedDiv = document.createElement(wrapperTag === 'span' ? 'span' : 'div');
     translatedDiv.className = 'zdf-translated';
     translatedDiv.textContent = translated;
 
@@ -623,7 +686,6 @@
       overflow-wrap: anywhere;
       word-break: break-word;
     `;
-    // 添加虚线下划线提示（可选，鼠标悬停显示原文）
     translatedDiv.title = '双击或切换模式可查看原文';
 
     container.appendChild(originalDiv);
@@ -645,21 +707,26 @@
       element.dataset.zdfOriginalText = original;
     }
 
-    const container = document.createElement('div');
+    // <p> 不能嵌套 <div>，改用 <span display:block>
+    const wrapperTag = element.tagName === 'P' ? 'span' : 'div';
+    const container = document.createElement(wrapperTag);
     container.className = 'zdf-translation-container';
+    container.style.display = 'block';
+    container.style.width = '100%';
 
-    const originalDiv = document.createElement('div');
+    const originalDiv = document.createElement(wrapperTag === 'span' ? 'span' : 'div');
     originalDiv.className = 'zdf-original';
-    originalDiv.innerHTML = element.dataset.zdfOriginalHtml;
+    safeRestoreHtml(originalDiv, element.dataset.zdfOriginalHtml);
 
-    const translatedDiv = document.createElement('div');
+    const translatedDiv = document.createElement(wrapperTag === 'span' ? 'span' : 'div');
     translatedDiv.className = 'zdf-translated';
     translatedDiv.textContent = translated;
     translatedDiv.style.cssText = `
       color: ${config.style.translationColor};
       font-size: ${config.style.translationSize};
-      margin-top: 8px;
-      padding: 10px 0;
+      margin-top: 16px;
+      padding-top: 12px;
+      border-top: 1px dashed rgba(120,120,120,0.18);
       line-height: ${config.style.lineSpacing};
       transition: opacity 0.3s ease;
       display: block;
@@ -686,9 +753,17 @@
     return config?.selectedModels?.[serviceName] || '';
   }
 
+  let articleContextCache = null;
+  let articleContextCacheTime = 0;
+  const ARTICLE_CONTEXT_TTL = 5000;
+
   function getArticleContext() {
     if (!config.enableAIContentAware) {
       return { articleTitle: '', articleSummary: '' };
+    }
+    const now = Date.now();
+    if (articleContextCache && (now - articleContextCacheTime) < ARTICLE_CONTEXT_TTL) {
+      return articleContextCache;
     }
 
     const title = (document.title || '').trim();
@@ -696,10 +771,12 @@
     const raw = (main?.innerText || '').replace(/\s+/g, ' ').trim();
     const summary = raw.slice(0, 800);
 
-    return {
+    articleContextCache = {
       articleTitle: title,
       articleSummary: summary,
     };
+    articleContextCacheTime = now;
+    return articleContextCache;
   }
 
   // 调用翻译API（统一入口）
@@ -724,7 +801,7 @@
         enableAIContentAware: !!config.enableAIContentAware,
         articleTitle,
         articleSummary,
-        promptVersion: 'v6-p1'
+        promptVersion: self.ZDF_CONSTANTS?.PROMPT_VERSION || 'v6-p1'
       }, (response) => {
         if (chrome.runtime.lastError) {
           reject(new Error(chrome.runtime.lastError.message));
@@ -739,15 +816,15 @@
 
   // 移除所有翻译
   function removeTranslations() {
-    document.querySelectorAll('[data-zdf-translated]').forEach(el => {
+    document.querySelectorAll('[data-zdf-translated="true"]').forEach(el => {
       // 恢复原始内容
       if (el.dataset.zdfOriginalHtml) {
-        el.innerHTML = el.dataset.zdfOriginalHtml;
+        safeRestoreHtml(el, el.dataset.zdfOriginalHtml);
       }
       // 清除所有标记
-      delete el.dataset.zdfTranslated;
-      delete el.dataset.zdfOriginalHtml;
-      delete el.dataset.zdfOriginalText;
+      el.dataset.zdfTranslated = '';
+      el.dataset.zdfOriginalHtml = '';
+      el.dataset.zdfOriginalText = '';
     });
     translatedElements.clear();
   }
@@ -867,44 +944,59 @@
     translationActive = true;
     document.body.dataset.zdfActive = 'true';
 
-    // 先兜底翻译页面顶区主标题（兼容 Bloomberg 标题在正文块之外）
-    await translateTopHeadlinesIfNeeded();
-    // 补充：直接扫描所有 h1/h2，无视容器限制（兜底 Bloomberg 等站点）
-    await translateStandaloneHeadings();
+    // 收集所有候选并按文档顺序排序（标题 → 正文 → 叶子容器）
+    const candidates = collectTranslationCandidates();
+    candidates.sort((a, b) => {
+      const pos = a.compareDocumentPosition(b);
+      return (pos & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1;
+    });
 
-    // 立即翻译当前可见区域的内容
-    const contentBlocks = findContentBlocks();
+    if (!candidates.length) {
+      await syncAndNotifyTranslationStatus(true);
+      return;
+    }
 
-    const immediateTasks = [];
-
-    for (const block of contentBlocks) {
-      // 检查元素是否在视口内或附近
-      const rect = block.getBoundingClientRect();
-      const isInViewport = rect.top < window.innerHeight + 500 && rect.bottom > -500;
-
-      if (isInViewport) {
-        // 可见区域并行翻译，提升首屏速度
-        immediateTasks.push(processElement(block));
+    // 区分可见区域与待滚动区域
+    const viewportMargin = 400;
+    const immediate = [];
+    const delayed = [];
+    for (const el of candidates) {
+      const rect = el.getBoundingClientRect();
+      if (rect.top < window.innerHeight + viewportMargin && rect.bottom > -viewportMargin) {
+        immediate.push(el);
       } else {
-        // 对于不在视口内的内容，使用 Intersection Observer 懒加载
-        const observer = new IntersectionObserver((entries) => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              // 检查是否仍处于翻译状态
-              if (translationActive) {
-                processElement(entry.target);
-              }
-              observer.unobserve(entry.target);
-            }
-          });
-        }, { rootMargin: '200px' });
-        observer.observe(block);
-        lazyLoadObservers.push(observer); // 保存引用以便清理
+        delayed.push(el);
       }
     }
 
-    if (immediateTasks.length) {
-      await Promise.allSettled(immediateTasks);
+    const tuning = getBatchTuning(config.translationService);
+
+    // 先翻译可见区域，营造"从上到下"的渐进感
+    await translateWithConcurrency(immediate, tuning.batchSize, tuning.concurrency);
+
+    // 对下方内容懒加载：进入视口后继续按顺序翻译
+    if (delayed.length && translationActive) {
+      const observer = new IntersectionObserver((entries) => {
+        const hit = entries
+          .filter(e => e.isIntersecting)
+          .map(e => e.target);
+
+        if (hit.length && translationActive) {
+          // 保持文档顺序继续翻译
+          hit.sort((a, b) => {
+            const pos = a.compareDocumentPosition(b);
+            return (pos & Node.DOCUMENT_POSITION_FOLLOWING) ? -1 : 1;
+          });
+          translateWithConcurrency(hit, tuning.batchSize, tuning.concurrency);
+        }
+
+        entries.forEach(e => {
+          if (e.isIntersecting) observer.unobserve(e.target);
+        });
+      }, { rootMargin: '300px' });
+
+      delayed.forEach(el => observer.observe(el));
+      lazyLoadObservers.push(observer);
     }
 
     await syncAndNotifyTranslationStatus(true);
@@ -913,28 +1005,28 @@
   // 恢复原文
   function restoreOriginal() {
     translationActive = false;
-    delete document.body.dataset.zdfActive;
+    document.body.dataset.zdfActive = '';
 
     // 移除所有翻译内容
-    document.querySelectorAll('[data-zdf-translated]').forEach(el => {
+    document.querySelectorAll('[data-zdf-translated="true"]').forEach(el => {
       // 恢复原始内容
       if (el.dataset.zdfOriginalHtml) {
-        el.innerHTML = el.dataset.zdfOriginalHtml;
+        safeRestoreHtml(el, el.dataset.zdfOriginalHtml);
       }
       // 清除所有标记
-      delete el.dataset.zdfTranslated;
-      delete el.dataset.zdfOriginalHtml;
-      delete el.dataset.zdfOriginalText;
+      el.dataset.zdfTranslated = '';
+      el.dataset.zdfOriginalHtml = '';
+      el.dataset.zdfOriginalText = '';
     });
 
     // 同时清理所有翻译容器（以防万一）
     document.querySelectorAll('.zdf-translation-container').forEach(container => {
       const parent = container.parentElement;
       if (parent && parent.dataset.zdfOriginalHtml) {
-        parent.innerHTML = parent.dataset.zdfOriginalHtml;
-        delete parent.dataset.zdfTranslated;
-        delete parent.dataset.zdfOriginalHtml;
-        delete parent.dataset.zdfOriginalText;
+        safeRestoreHtml(parent, parent.dataset.zdfOriginalHtml);
+        parent.dataset.zdfTranslated = '';
+        parent.dataset.zdfOriginalHtml = '';
+        parent.dataset.zdfOriginalText = '';
       }
     });
 
@@ -969,6 +1061,7 @@
 
   // 显示翻译弹窗
   let popupStreamTimer = null;
+  let popupStreamSkip = null;
   let popupLatestTranslatedText = '';
   let popupLatestOriginalSegments = [];
   let popupLatestTranslatedSegments = [];
@@ -1115,6 +1208,7 @@
 
       setTimeout(() => {
         document.addEventListener('click', handlePopupOutsideClick);
+        document.addEventListener('keydown', handlePopupEsc);
       }, 80);
     }
 
@@ -1179,6 +1273,7 @@
       clearInterval(popupStreamTimer);
       popupStreamTimer = null;
     }
+    popupStreamSkip = null;
 
     const paragraphs = splitTranslatedParagraphs(text);
     el.innerHTML = '';
@@ -1198,16 +1293,30 @@
     let paraIdx = 0;
     let charIdx = 0;
 
+    popupStreamSkip = () => {
+      if (popupStreamTimer) {
+        clearInterval(popupStreamTimer);
+        popupStreamTimer = null;
+      }
+      paragraphEls.forEach((p, idx) => {
+        p.textContent = paragraphs[idx] || '';
+      });
+      popupStreamSkip = null;
+      if (onDone) onDone();
+    };
+
     popupStreamTimer = setInterval(() => {
       if (!document.body.contains(el)) {
         clearInterval(popupStreamTimer);
         popupStreamTimer = null;
+        popupStreamSkip = null;
         return;
       }
 
       if (paraIdx >= paragraphs.length) {
         clearInterval(popupStreamTimer);
         popupStreamTimer = null;
+        popupStreamSkip = null;
         if (onDone) onDone();
         return;
       }
@@ -1236,7 +1345,11 @@
         clearInterval(popupStreamTimer);
         popupStreamTimer = null;
       }
-      translatedDiv.innerHTML = `<span class="zdf-popup-error">翻译失败: ${error}</span>`;
+      translatedDiv.innerHTML = '';
+      const errSpan = document.createElement('span');
+      errSpan.className = 'zdf-popup-error';
+      errSpan.textContent = `翻译失败: ${error}`;
+      translatedDiv.appendChild(errSpan);
       footer.style.display = 'none';
       popupLatestTranslatedText = '';
       popupLatestOriginalSegments = [];
@@ -1249,10 +1362,24 @@
         clearInterval(popupStreamTimer);
         popupStreamTimer = null;
       }
-      translatedDiv.innerHTML = `<span class="zdf-popup-loading">
-        <svg class="zdf-popup-spinner" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" fill="none" stroke-dasharray="31.4 31.4"/></svg>
-        正在努力翻译中...
-      </span>`;
+      translatedDiv.innerHTML = '';
+      const loadingSpan = document.createElement('span');
+      loadingSpan.className = 'zdf-popup-loading';
+      const spinner = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      spinner.setAttribute('class', 'zdf-popup-spinner');
+      spinner.setAttribute('viewBox', '0 0 24 24');
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', '12');
+      circle.setAttribute('cy', '12');
+      circle.setAttribute('r', '10');
+      circle.setAttribute('stroke', 'currentColor');
+      circle.setAttribute('stroke-width', '3');
+      circle.setAttribute('fill', 'none');
+      circle.setAttribute('stroke-dasharray', '31.4 31.4');
+      spinner.appendChild(circle);
+      loadingSpan.appendChild(spinner);
+      loadingSpan.appendChild(document.createTextNode(' 正在努力翻译中...'));
+      translatedDiv.appendChild(loadingSpan);
       footer.style.display = 'none';
       popupLatestTranslatedText = '';
       popupLatestOriginalSegments = [];
@@ -1292,6 +1419,16 @@
     }
   }
 
+  function handlePopupEsc(e) {
+    if (e.key === 'Escape') {
+      if (popupStreamSkip) {
+        popupStreamSkip();
+      } else {
+        removeTranslationPopup();
+      }
+    }
+  }
+
   function removeTranslationPopup() {
     const popup = document.getElementById('zdf-translation-popup');
     if (popup) {
@@ -1301,10 +1438,12 @@
       clearInterval(popupStreamTimer);
       popupStreamTimer = null;
     }
+    popupStreamSkip = null;
     popupLatestTranslatedText = '';
     popupLatestOriginalSegments = [];
     popupLatestTranslatedSegments = [];
     document.removeEventListener('click', handlePopupOutsideClick);
+    document.removeEventListener('keydown', handlePopupEsc);
   }
 
 
@@ -1479,14 +1618,25 @@
     btn.classList.add('show');
   }
 
-  document.addEventListener('selectionchange', () => {
+  function throttle(fn, wait) {
+    let last = 0;
+    return function (...args) {
+      const now = Date.now();
+      if (now - last >= wait) {
+        last = now;
+        fn.apply(this, args);
+      }
+    };
+  }
+
+  document.addEventListener('selectionchange', throttle(() => {
     const text = (window.getSelection()?.toString() || '').trim();
     if (text) {
       showSelectionQuickButtonNearSelection();
     } else {
       scheduleHideSelectionQuickButton(60);
     }
-  });
+  }, 80));
 
   document.addEventListener('mousedown', (e) => {
     if (selectionQuickBtn && selectionQuickBtn.contains(e.target)) return;
@@ -1501,6 +1651,30 @@
       applyFloatingButtonPosition(btn);
     }
   });
+
+  // SPA 路由切换兼容：清理翻译状态避免旧页面译文残留
+  function onRouteChanged() {
+    if (translationActive) {
+      removeTranslations();
+    }
+  }
+  window.addEventListener('popstate', onRouteChanged);
+  window.addEventListener('hashchange', onRouteChanged);
+  if (!history._zdfPatched) {
+    history._zdfPatched = true;
+    const origPush = history.pushState;
+    const origReplace = history.replaceState;
+    history.pushState = function (...args) {
+      const r = origPush.apply(this, args);
+      onRouteChanged();
+      return r;
+    };
+    history.replaceState = function (...args) {
+      const r = origReplace.apply(this, args);
+      onRouteChanged();
+      return r;
+    };
+  }
 
   // 监听来自 background 的弹窗消息
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -1527,22 +1701,27 @@
 
   async function saveFloatingButtonPosition(left, top) {
     try {
-      const result = await chrome.storage.sync.get(['zdfConfig']);
-      const cfg = result?.zdfConfig || {};
-      cfg.floatingButtonPosition = {
-        left: Math.round(left),
-        top: Math.round(top)
-      };
-      await chrome.storage.sync.set({ zdfConfig: cfg });
+      await chrome.storage.local.set({
+        floatingButtonPosition: {
+          left: Math.round(left),
+          top: Math.round(top)
+        }
+      });
     } catch (e) {
       // 忽略持久化失败，避免影响交互
     }
   }
 
-  function applyFloatingButtonPosition(btn) {
+  async function applyFloatingButtonPosition(btn) {
     if (!btn) return;
 
-    const saved = config?.floatingButtonPosition;
+    let saved;
+    try {
+      const result = await chrome.storage.local.get(['floatingButtonPosition']);
+      saved = result?.floatingButtonPosition;
+    } catch (e) {
+      saved = null;
+    }
     if (saved && Number.isFinite(saved.left) && Number.isFinite(saved.top)) {
       const maxLeft = Math.max(8, window.innerWidth - btn.offsetWidth - 8);
       const maxTop = Math.max(8, window.innerHeight - btn.offsetHeight - 8);

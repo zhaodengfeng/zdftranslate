@@ -373,32 +373,36 @@
               </button>
             </div>
             <div class="custom-service-body">
-              <div class="field">
-                <label class="field-label">API Base URL</label>
-                <input type="text" class="custom-service-baseurl input" placeholder="https://api.example.com/v1">
-              </div>
-              <div class="field">
-                <label class="field-label">API Key</label>
-                <input type="password" class="custom-service-apikey input" placeholder="输入 API Key">
-              </div>
-              <div class="field">
-                <label class="field-label">兼容模式</label>
-                <select class="custom-service-mode select">
-                  <option value="openai">OpenAI 兼容 (/v1/chat/completions)</option>
-                  <option value="anthropic">Anthropic 兼容 (/v1/messages)</option>
-                </select>
-              </div>
-              <div class="field model-select">
-                <label class="field-label">模型</label>
-                <div class="model-input-wrapper">
-                  <select class="custom-service-model select model-select-dropdown"><option value="">选择模型...</option></select>
-                  <input type="text" class="custom-service-model-custom input model-custom-input" placeholder="输入模型名" style="display:none;">
+              <div class="cs-grid">
+                <div class="field">
+                  <label class="field-label">API Base URL</label>
+                  <input type="text" class="custom-service-baseurl input" placeholder="https://api.example.com/v1">
                 </div>
-                <div class="model-actions">
-                  <button class="btn-sm refresh-custom-models"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.13-3.36L23 10"/><path d="M20.49 15a9 9 0 01-14.13 3.36L1 14"/></svg>获取模型</button>
-                  <button class="btn-sm toggle-custom-model-custom"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>自定义</button>
+                <div class="field">
+                  <label class="field-label">API Key</label>
+                  <input type="password" class="custom-service-apikey input" placeholder="输入 API Key">
                 </div>
-                <span class="model-status custom-service-status"></span>
+              </div>
+              <div class="cs-grid">
+                <div class="field">
+                  <label class="field-label">兼容模式</label>
+                  <select class="custom-service-mode select">
+                    <option value="openai">OpenAI 兼容</option>
+                    <option value="anthropic">Anthropic 兼容</option>
+                  </select>
+                </div>
+                <div class="field model-select">
+                  <label class="field-label">模型</label>
+                  <div class="model-input-wrapper">
+                    <select class="custom-service-model select model-select-dropdown"><option value="">选择模型...</option></select>
+                    <input type="text" class="custom-service-model-custom input model-custom-input" placeholder="输入模型名" style="display:none;">
+                  </div>
+                  <div class="model-actions">
+                    <button class="btn-sm refresh-custom-models"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.13-3.36L23 10"/><path d="M20.49 15a9 9 0 01-14.13 3.36L1 14"/></svg>获取模型</button>
+                    <button class="btn-sm toggle-custom-model-custom"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>自定义</button>
+                  </div>
+                  <span class="model-status custom-service-status"></span>
+                </div>
               </div>
             </div>
           </div>

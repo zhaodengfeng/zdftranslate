@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ZDFTranslate - 简单翻译",
-  "version": "27.0.0",
+  "version": "26.4.12",
   "description": "简单高效的双语对照网页翻译插件，支持多种 AI 翻译服务，免费开箱即用",
   "permissions": [
     "storage",
@@ -33,12 +33,17 @@
       "js": [
         "lib/dom-parser.js",
         "lib/translator.js",
+        "constants.js",
         "content.js"
       ],
       "run_at": "document_idle"
     }
   ],
   "options_page": "options.html",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "key": "LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JSUNkZ0lCQURBTkJna3Foa2lHOXcwQkFRRUZBQVNDQW1Bd2dnSmNBZ0VBQW9HQkFKY2NhYWFMcUJwVWhCeG4KZkx6KzlpWlYvNUNMMUpWaUZMOUlpNzJ1OThpd1ZlcnhMTkJqZW5saWlMTkhhZTBoUDNjNnVzV1FZTDkvaU5UVgpSQmpPSW1IdlcvVGFsR3dmVEY3eFFoQTkzR3p5NVFaaEI3eERNa3ZiOXQrY1luMW9zbDRXNTQ3a2tGOUtFVG1WCitPNGx3UFg2YjdxOVcrWmlmMXlKOEE0NTZsVWRBZ01CQUFFQ2dZQWFqWWVUR0Y5Rm9TeEZ3WG1OekU5OGxRZi8KWWxMTW5SdUFNVU04NVkzczJlOS9CVG9XdENSRlNDYzFPWXRIZTl3bkcwN09nSHcvcWkxbEdNU0toMDVMR2lEZQozTU10STRwK3VNYm10N2VQV25FVm5mOEp6cXl6WjhnbS9TOC90dGF2ZE5ycUhQNVROZ3NuZHRGbXRhb2NueUlXCjhRcDNBaGhJQkF1VlhsSHNBUUpCQU1WR2dMSVIzcUlZMEZGbVBjdDR6ZnFyT0E3QmZKek1QYllQOHdRb1I3SU0KdWhHT0owUk5tcCt1SzIvbjUrWUVMVE96dlJoVWpMVis1NEpmOTRkd3oxMENRUURFRit2bG1OUk1Odm1GcmlEbgpuNm1ZY3hHbmNlbWdZcUZNcms5RUR6M1pBWEdkRlNNbzY3WVRGUE5BUjFJSGhacHI0eEhDaE5DalUwaVArWVFkCmRnREJBa0VBcnAxMklxZ1FrUmczcENWRWcwcTl2Nmc0S1U5NFZtMnVIZTNHSkNMbk95RnF2VWsvVm9UK1hXTFUKRGV5T1pobkNUT1pHZFRlNWlKajRvSDBEWTM0bC9RSkFXNWRjek5JVW4wQ3lUYmxtanltcFdwYXNzVXhvdGt3NwpVUWk5NTJsREZ5QXdoQkdDYWJPblNNUnBWaVc1Nzk5OG9GWGdUcjRnZ1pqOTlKbTBGdHF1UVFKQVZGWFdxaUNvCmlpejdjaEh6bzZ4a0J0YXc5dFhwTWIybDZPWG4wZEdISklza0JoUzRCVS9UL2IvZnE1Q3VCTEdnVGd5RVN0YlcKNVF3QlgyM1IyNmZoaWc9PQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
