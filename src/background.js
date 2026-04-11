@@ -8,16 +8,20 @@ try {
 
 const {
   DEFAULT_MODELS: providerDefaultModels,
+  PROMPT_PRESETS: providerPromptPresets,
   isCustomService: providerIsCustomService,
   isLLMService: providerIsLLMService,
   resolveModelForService: providerResolveModelForService,
   resolveTargetLangName: providerResolveTargetLangName,
   buildTranslationMessages: providerBuildTranslationMessages,
   extractChatCompletionText: providerExtractChatCompletionText,
+  extractAnthropicText: providerExtractAnthropicText,
 } = self.ZDFProviders || {};
 
 const DEFAULT_MODELS = providerDefaultModels || {
-  openai: 'gpt-3.5-turbo',
+  openai: 'gpt-4o-mini',
+  claude: 'claude-sonnet-4-20250514',
+  gemini: 'gemini-2.0-flash',
   kimi: 'moonshot-v1-8k',
   zhipu: 'glm-4-flash',
   aliyun: 'qwen-turbo',
@@ -32,7 +36,7 @@ function isCustomService(service) {
 
 function isLLMService(service) {
   if (typeof providerIsLLMService === 'function') return providerIsLLMService(service);
-  return ['kimi', 'aliyun', 'zhipu', 'openai', 'deepseek', 'openrouter'].includes(service) || isCustomService(service);
+  return ['kimi', 'aliyun', 'zhipu', 'openai', 'claude', 'gemini', 'deepseek', 'openrouter'].includes(service) || isCustomService(service);
 }
 
 function resolveTargetLangName(targetLang) {
@@ -63,13 +67,13 @@ function resolveModelForService(config, service, modelOverride) {
   return config?.selectedModels?.[service] || DEFAULT_MODELS[service] || '';
 }
 
-function buildTranslationMessages(targetLang, text) {
+function buildTranslationMessages(targetLang, text, promptPreset) {
   if (typeof providerBuildTranslationMessages === 'function') {
-    return providerBuildTranslationMessages(targetLang, text);
+    return providerBuildTranslationMessages(targetLang, text, promptPreset);
   }
   const targetLangName = resolveTargetLangName(targetLang);
   return {
-    system: `You are a professional translator. Translate into ${targetLangName} accurately and literally. Do NOT add facts, do NOT summarize, do NOT infer. Preserve numbers, names, entities, and paragraph boundaries. Return translation only. If input contains <TEXT>...</TEXT>, translate ONLY the content inside <TEXT> and ignore other context blocks.`,
+    system: `You are a professional translator. Translate into ${targetLangName} accurately and naturally. Preserve numbers, names, entities, and paragraph boundaries. Return translation only. If input contains <TEXT>...</TEXT>, translate ONLY the content inside <TEXT> and ignore other context blocks.`,
     user: text,
   };
 }
@@ -132,15 +136,15 @@ const MIN_REQUEST_INTERVAL_BY_SERVICE = {
   default: 80,
   'google-free': 120,
   'microsoft-free': 120,
-  libretranslate: 300,
-  mymemory: 250,
   aliyun: 1200,
-  'aliyun-mt': 1200,
   kimi: 60,
   zhipu: 60,
   deepseek: 60,
   openai: 60,
+  claude: 60,
+  gemini: 60,
   openrouter: 60,
+  deepl: 100,
   custom: 60
 };
 
@@ -148,15 +152,14 @@ const REQUEST_TIMEOUT_BY_SERVICE = {
   default: 15000,
   'google-free': 15000,
   'microsoft-free': 15000,
-  google: 20000,
   deepl: 20000,
-  libretranslate: 20000,
   aliyun: 45000,
-  'aliyun-mt': 45000,
   kimi: 45000,
   zhipu: 45000,
   deepseek: 45000,
   openai: 45000,
+  claude: 45000,
+  gemini: 45000,
   openrouter: 45000,
   custom: 45000
 };
@@ -267,6 +270,23 @@ async function fetchRemoteModelsForService(service, apiKey) {
       const data = await resp.json();
       return mapToModels((data.data || []).filter(m => m.id && m.id.includes('gpt')));
     },
+    claude: async () => {
+      // Anthropic doesn't have a models list API, return commonly used models
+      return [
+        { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
+        { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
+        { id: 'claude-haiku-4-20250514', name: 'Claude Haiku 4' },
+        { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
+        { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku' },
+      ];
+    },
+    gemini: async () => {
+      const resp = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`, { method: 'GET' }, 'gemini');
+      const data = await resp.json();
+      return (data.models || [])
+        .filter(m => m.name && m.supportedGenerationMethods?.includes('generateContent'))
+        .map(m => ({ id: m.name.replace('models/', ''), name: m.displayName || m.name.replace('models/', '') }));
+    },
     openrouter: async () => {
       const resp = await fetchWithRetry('https://openrouter.ai/api/v1/models', { headers: { Authorization: `Bearer ${key}` } }, 'openrouter');
       const data = await resp.json();
@@ -316,9 +336,10 @@ async function callOpenAICompatibleTranslate({
   maxRetries = 2,
   maxTokens,
   temperature = 0.3,
+  promptPreset,
 }) {
   ensureApiKey(apiKey, serviceName);
-  const { system, user } = buildTranslationMessages(targetLang, text);
+  const { system, user } = buildTranslationMessages(targetLang, text, promptPreset);
 
   const finalTemperature = resolveTemperatureForService(serviceName, model, temperature);
 
@@ -370,8 +391,6 @@ async function callOpenAICompatibleTranslate({
   }
 }
 
-// ... (省略部分未变代码，保持原样逻辑) ...
-
 function ensureContextMenu() {
   try {
     chrome.contextMenus.removeAll(() => {
@@ -397,10 +416,8 @@ function getDefaultConfig() {
     displayMode: 'bilingual',
     translationService: 'microsoft-free',
     enableAIContentAware: false,
-    autoTranslateYouTube: false,
-    autoEnableYouTubeCC: true,
-    showFloatingImageExportButton: true,
-    showFloatingPdfExportButton: true,
+    promptPreset: 'general',
+    deeplPlan: 'free',
     selectedModels: { ...DEFAULT_MODELS },
     apiKeys: {},
     customServices: [],
@@ -438,7 +455,7 @@ chrome.runtime.onInstalled.addListener((details) => {
             needsUpdate = true;
           }
 
-          if (!cfg.translationService || cfg.translationService === 'libretranslate') {
+          if (!cfg.translationService || cfg.translationService === 'libretranslate' || cfg.translationService === 'google') {
             cfg.translationService = 'microsoft-free';
             needsUpdate = true;
           }
@@ -448,13 +465,38 @@ chrome.runtime.onInstalled.addListener((details) => {
             needsUpdate = true;
           }
 
-          if (typeof cfg.showFloatingImageExportButton !== 'boolean') {
-            cfg.showFloatingImageExportButton = true;
+          // Migrate: remove obsolete config keys
+          if ('showFloatingImageExportButton' in cfg) {
+            delete cfg.showFloatingImageExportButton;
+            needsUpdate = true;
+          }
+          if ('showFloatingPdfExportButton' in cfg) {
+            delete cfg.showFloatingPdfExportButton;
+            needsUpdate = true;
+          }
+          if ('autoTranslateYouTube' in cfg) {
+            delete cfg.autoTranslateYouTube;
+            needsUpdate = true;
+          }
+          if ('autoEnableYouTubeCC' in cfg) {
+            delete cfg.autoEnableYouTubeCC;
+            needsUpdate = true;
+          }
+          if (cfg.style && 'showWatermark' in cfg.style) {
+            delete cfg.style.showWatermark;
+            needsUpdate = true;
+          }
+          if (cfg.apiKeys && 'google' in cfg.apiKeys) {
+            delete cfg.apiKeys.google;
             needsUpdate = true;
           }
 
-          if (typeof cfg.showFloatingPdfExportButton !== 'boolean') {
-            cfg.showFloatingPdfExportButton = true;
+          if (!cfg.promptPreset) {
+            cfg.promptPreset = 'general';
+            needsUpdate = true;
+          }
+          if (!cfg.deeplPlan) {
+            cfg.deeplPlan = 'free';
             needsUpdate = true;
           }
 
@@ -568,8 +610,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   }
 });
 
-// ... (Context Menu & Tab Listeners - 保持原样) ...
-
 // Kimi API - 优化请求头
 async function translateWithKimi(text, targetLang, sourceLang, modelOverride) {
   const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
@@ -578,7 +618,8 @@ async function translateWithKimi(text, targetLang, sourceLang, modelOverride) {
 
   ensureApiKey(apiKey, 'kimi');
 
-  const { system, user } = buildTranslationMessages(targetLang, text);
+  // Kimi 某些模型对 system / temperature 参数更严格，合并为 user 消息
+  const { system, user } = buildTranslationMessages(targetLang, text, zdfConfig?.promptPreset);
   const response = await fetchWithRetry(
     'https://api.moonshot.cn/v1/chat/completions',
     {
@@ -589,7 +630,6 @@ async function translateWithKimi(text, targetLang, sourceLang, modelOverride) {
       },
       body: JSON.stringify({
         model,
-        // Kimi 某些模型对 system / temperature 参数更严格
         messages: [{ role: 'user', content: `${system}\n\n${user}` }],
         temperature: 1,
       }),
@@ -601,8 +641,6 @@ async function translateWithKimi(text, targetLang, sourceLang, modelOverride) {
   const data = await response.json();
   return extractChatCompletionText(data, 'kimi');
 }
-
-// ... (其他 API 函数保持原样，仅复用 fetchWithRetry 优化) ...
 
 // 为了完整性，这里包含核心的消息监听和处理逻辑
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -716,11 +754,11 @@ const TRANSLATION_HANDLER_MAP = {
   aliyun: translateWithAliyun,
   zhipu: translateWithZhipu,
   openai: translateWithOpenAI,
+  claude: translateWithClaude,
+  gemini: translateWithGemini,
   deepseek: translateWithDeepSeek,
-  google: translateWithGoogle,
   deepl: translateWithDeepL,
   openrouter: translateWithOpenRouter,
-  libretranslate: translateWithLibreTranslate,
 };
 
 async function dispatchSingleTranslation(request) {
@@ -817,7 +855,7 @@ function enqueueTranslationRequest(request) {
   }
 
   const service = request?.service || 'microsoft-free';
-  const isFastPath = !['microsoft-free', 'google-free', 'libretranslate'].includes(service);
+  const isFastPath = !['microsoft-free', 'google-free'].includes(service);
   if (isFastPath) {
     // API/LLM 服务不做后台聚合，避免分隔符污染与“前几段后就卡住”
     return handleTranslation(request);
@@ -849,7 +887,6 @@ function enqueueTranslationRequest(request) {
   });
 }
 
-// 补全其他服务的简要实现 (基于之前的代码)
 async function translateWithAliyun(text, targetLang, sourceLang, modelOverride) {
     const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
     const apiKey = zdfConfig?.apiKeys?.aliyun;
@@ -857,9 +894,8 @@ async function translateWithAliyun(text, targetLang, sourceLang, modelOverride) 
 
     ensureApiKey(apiKey, 'aliyun');
 
-    // 某些阿里云模型不接受 system 角色（报错: Role must be in [user, assistant]）
-    // 这里改为纯 user 消息，避免整条 API 翻译链路失效。
-    const targetLangName = resolveTargetLangName(targetLang);
+    // 某些阿里云模型不接受 system 角色（报错: Role must be in [user, assistant]），合并为 user 消息
+    const { system, user } = buildTranslationMessages(targetLang, text, zdfConfig?.promptPreset);
     const response = await fetchWithRetry(
       'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
       {
@@ -870,12 +906,7 @@ async function translateWithAliyun(text, targetLang, sourceLang, modelOverride) 
         },
         body: JSON.stringify({
           model,
-          messages: [
-            {
-              role: 'user',
-              content: `You are a professional translator. Translate the following text to ${targetLangName}. Only return the translated text, no explanations.\n\n${text}`,
-            },
-          ],
+          messages: [{ role: 'user', content: `${system}\n\n${user}` }],
           temperature: 0.3,
         }),
       },
@@ -899,6 +930,7 @@ async function translateWithZhipu(text, targetLang, sourceLang, modelOverride) {
       model,
       targetLang,
       text,
+      promptPreset: zdfConfig?.promptPreset,
     });
 }
 
@@ -914,6 +946,7 @@ async function translateWithOpenAI(text, targetLang, sourceLang, modelOverride) 
       model,
       targetLang,
       text,
+      promptPreset: zdfConfig?.promptPreset,
     });
 }
 
@@ -929,29 +962,8 @@ async function translateWithDeepSeek(text, targetLang, sourceLang, modelOverride
       model,
       targetLang,
       text,
+      promptPreset: zdfConfig?.promptPreset,
     });
-}
-
-async function translateWithGoogle(text, targetLang, sourceLang) {
-   const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
-   const apiKey = zdfConfig?.apiKeys?.google;
-
-   ensureApiKey(apiKey, 'Google');
-
-   const response = await fetchWithRetry(
-       `https://translation.googleapis.com/language/translate/v2?key=${apiKey}`,
-       {
-           method: 'POST',
-           headers: { 'Content-Type': 'application/json' },
-           body: JSON.stringify({ q: text, target: targetLang, format: 'text', source: sourceLang })
-       },
-       'google'
-   );
-   const data = await response.json();
-   if (!data.data?.translations?.[0]?.translatedText) {
-       throw new Error('Google API 返回格式错误');
-   }
-   return data.data.translations[0].translatedText;
 }
 
 async function translateWithGoogleFree(text, targetLang, sourceLang) {
@@ -1019,6 +1031,7 @@ async function translateWithMicrosoftFree(text, targetLang, sourceLang) {
 async function translateWithDeepL(text, targetLang, sourceLang) {
     const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
     const apiKey = zdfConfig?.apiKeys?.deepl;
+    const plan = zdfConfig?.deeplPlan || 'free';
     
     ensureApiKey(apiKey, 'DeepL');
 
@@ -1029,8 +1042,12 @@ async function translateWithDeepL(text, targetLang, sourceLang) {
       params.set('source_lang', sourceLang.toUpperCase());
     }
     
+    const baseUrl = plan === 'pro'
+      ? 'https://api.deepl.com/v2/translate'
+      : 'https://api-free.deepl.com/v2/translate';
+    
     const response = await fetchWithRetry(
-        'https://api-free.deepl.com/v2/translate',
+        baseUrl,
         {
             method: 'POST',
             headers: {
@@ -1048,30 +1065,79 @@ async function translateWithDeepL(text, targetLang, sourceLang) {
     return data.translations[0].text;
 }
 
-// LibreTranslate 实现
-async function translateWithLibreTranslate(text, targetLang, sourceLang) {
-    try {
-        const target = targetLang === 'zh-CN' ? 'zh' : targetLang.split('-')[0];
-        const response = await fetchWithRetry(
-            'https://libretranslate.de/translate',
-            {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    q: text, 
-                    source: sourceLang === 'auto' ? 'auto' : sourceLang.split('-')[0], 
-                    target: target 
-                })
-            },
-            'libretranslate',
-            1
-        );
-        const data = await response.json();
-        return data.translatedText || text;
-    } catch (error) {
-        console.error('LibreTranslate 翻译失败:', error);
-        throw new Error('LibreTranslate 翻译失败: ' + error.message);
+// Gemini 翻译 (Google AI)
+async function translateWithGemini(text, targetLang, sourceLang, modelOverride) {
+    const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
+    const apiKey = zdfConfig?.apiKeys?.gemini;
+    const model = resolveModelForService(zdfConfig, 'gemini', modelOverride);
+
+    ensureApiKey(apiKey, 'Gemini');
+
+    const { system, user } = buildTranslationMessages(targetLang, text, zdfConfig?.promptPreset);
+
+    const response = await fetchWithRetry(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                system_instruction: { parts: [{ text: system }] },
+                contents: [{ parts: [{ text: user }] }],
+                generationConfig: { temperature: 0.3 },
+            }),
+        },
+        'gemini',
+        2,
+    );
+
+    const data = await response.json();
+    const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!content || !content.trim()) {
+        throw new Error('Gemini API 返回格式错误');
     }
+    return content.trim();
+}
+
+// Claude (Anthropic) 翻译
+async function translateWithClaude(text, targetLang, sourceLang, modelOverride) {
+    const { zdfConfig } = await chrome.storage.sync.get(['zdfConfig']);
+    const apiKey = zdfConfig?.apiKeys?.claude;
+    const model = resolveModelForService(zdfConfig, 'claude', modelOverride);
+
+    ensureApiKey(apiKey, 'Claude');
+
+    const { system, user } = buildTranslationMessages(targetLang, text, zdfConfig?.promptPreset);
+
+    const response = await fetchWithRetry(
+        'https://api.anthropic.com/v1/messages',
+        {
+            method: 'POST',
+            headers: {
+                'x-api-key': apiKey,
+                'Content-Type': 'application/json',
+                'anthropic-version': '2023-06-01',
+                'anthropic-dangerous-direct-browser-access': 'true',
+            },
+            body: JSON.stringify({
+                model,
+                max_tokens: 4096,
+                system,
+                messages: [{ role: 'user', content: user }],
+            }),
+        },
+        'claude',
+        2,
+    );
+
+    const data = await response.json();
+    if (typeof providerExtractAnthropicText === 'function') {
+        return providerExtractAnthropicText(data, 'Claude');
+    }
+    const blocks = data?.content;
+    if (!Array.isArray(blocks) || blocks.length === 0) {
+        throw new Error('Claude API 返回格式错误');
+    }
+    return blocks.filter(b => b.type === 'text').map(b => b.text).join('').trim();
 }
 
 // OpenRouter 翻译
@@ -1089,6 +1155,7 @@ async function translateWithOpenRouter(text, targetLang, sourceLang, modelOverri
           targetLang,
           text,
           maxTokens: 2000,
+          promptPreset: zdfConfig?.promptPreset,
           headers: {
             'HTTP-Referer': 'https://github.com/zdf-translate',
             'X-Title': 'ZDFTranslate',
@@ -1123,8 +1190,6 @@ async function translateWithCustomService(serviceId, text, targetLang, sourceLan
         throw new Error(`自定义服务 ${customService.name} 未配置 API Base URL`);
     }
     
-    const targetLangName = resolveTargetLangName(targetLang);
-    
     // 规范化 URL：去除首尾空格，去除尾部斜杠
     let baseUrl = customService.apiBaseUrl.trim();
     while (baseUrl.endsWith('/')) {
@@ -1134,6 +1199,7 @@ async function translateWithCustomService(serviceId, text, targetLang, sourceLan
     
     if (customService.mode === 'anthropic') {
         // Anthropic 兼容模式
+        const { system, user } = buildTranslationMessages(targetLang, text, zdfConfig?.promptPreset);
         const response = await fetchWithRetry(
             `${baseUrl}/messages`,
             {
@@ -1146,13 +1212,8 @@ async function translateWithCustomService(serviceId, text, targetLang, sourceLan
                 body: JSON.stringify({
                     model: model,
                     max_tokens: 2000,
-                    system: `You are a professional translator. Translate the following text to ${targetLangName}. Only return the translated text, no explanations.`,
-                    messages: [
-                        {
-                            role: 'user',
-                            content: text
-                        }
-                    ]
+                    system,
+                    messages: [{ role: 'user', content: user }]
                 })
             },
             'custom'
@@ -1173,6 +1234,7 @@ async function translateWithCustomService(serviceId, text, targetLang, sourceLan
           targetLang,
           text,
           maxTokens: 2000,
+          promptPreset: zdfConfig?.promptPreset,
         });
     }
 }

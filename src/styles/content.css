@@ -37,7 +37,7 @@
   display: inline-block;
   width: 14px;
   height: 14px;
-  border: 2px solid #2563eb;
+  border: 2px solid #6366f1;
   border-top-color: transparent;
   border-radius: 50%;
   animation: zdf-spin 0.8s linear infinite;
@@ -52,7 +52,7 @@
 /* 选中文本翻译按钮 */
 .zdf-float-btn {
   position: absolute;
-  background: linear-gradient(135deg, #60a5fa 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #a5b4fc 0%, #6366f1 100%);
   color: white;
   border: none;
   padding: 8px 14px;
@@ -60,21 +60,20 @@
   cursor: pointer;
   font-size: 13px;
   font-weight: 500;
-  box-shadow: 0 2px 10px rgba(37, 99, 235, 0.30);
+  box-shadow: 0 2px 10px rgba(99, 102, 241, 0.30);
   z-index: 10001;
   transition: all 0.2s ease;
 }
 
 .zdf-float-btn:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.38);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.38);
 }
 
 /* 翻译激活状态标记 */
 body[data-zdf-active="true"] {
   /* 可以添加全局样式 */
 }
-
 
 /* ========== 翻译弹窗样式 (现代化设计) ========== */
 .zdf-popup {
@@ -120,7 +119,7 @@ body[data-zdf-active="true"] {
   width: 25px;
   height: 25px;
   background: #fff;
-  border: 1px solid rgba(37, 99, 235, 0.2);
+  border: 1px solid rgba(99, 102, 241, 0.2);
   border-radius: 6px;
   display: flex;
   align-items: center;
@@ -168,7 +167,7 @@ body[data-zdf-active="true"] {
 }
 
 .zdf-popup-close:hover svg {
-  color: #2563eb;
+  color: #6366f1;
 }
 
 /* 内容区域 */
@@ -229,7 +228,7 @@ body[data-zdf-active="true"] {
 }
 
 .zdf-popup-error {
-  color: #2563eb;
+  color: #6366f1;
   font-size: 14px;
 }
 
@@ -244,7 +243,7 @@ body[data-zdf-active="true"] {
 .zdf-popup-spinner {
   width: 18px;
   height: 18px;
-  color: #2563eb;
+  color: #6366f1;
   animation: zdf-spin 1s linear infinite;
 }
 
@@ -349,10 +348,10 @@ body[data-zdf-active="true"] {
   position: absolute;
   width: 34px;
   height: 34px;
-  border: 1px solid rgba(37, 99, 235, 0.35);
+  border: 1px solid rgba(99, 102, 241, 0.35);
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 6px 18px rgba(37, 99, 235, 0.22);
+  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.22);
   display: none;
   align-items: center;
   justify-content: center;
@@ -388,14 +387,14 @@ body[data-zdf-active="true"] {
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(37, 99, 235, 0.35);
+  border: 1px solid rgba(99, 102, 241, 0.35);
   border-radius: 50%;
   cursor: pointer;
   z-index: 99999;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.18);
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.18);
   transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
   animation: zdf-float-in 0.3s ease-out;
   touch-action: none;
@@ -421,34 +420,13 @@ body[data-zdf-active="true"] {
 .zdf-floating-btn:hover {
   transform: translateY(-1px) scale(1.08);
   background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.24);
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.24);
 }
 
 /* 悬浮提示（图标文字说明） */
 .zdf-floating-btn::after,
-.zdf-capture-btn::after {
-  content: attr(data-tip);
-  position: absolute;
-  right: 42px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: rgba(15, 23, 42, 0.9);
-  color: #fff;
-  font-size: 12px;
-  line-height: 1;
-  padding: 7px 9px;
-  border-radius: 8px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.15s ease, transform 0.15s ease;
-}
 
 .zdf-floating-btn:hover::after,
-.zdf-capture-btn:hover::after {
-  opacity: 1;
-  transform: translateY(-50%) translateX(-2px);
-}
 
 /* 翻译中不显示提示气泡（避免黑底提示突兀） */
 .zdf-floating-btn.zdf-float-loading::after {
@@ -468,9 +446,6 @@ body[data-zdf-active="true"] {
 }
 
 .zdf-floating-btn > .zdf-float-icon-img,
-.zdf-capture-btn > .zdf-float-icon-img {
-  object-fit: contain;
-}
 
 .zdf-floating-btn:hover > .zdf-float-icon,
 .zdf-floating-btn:hover > .zdf-float-icon-img {
@@ -549,7 +524,7 @@ body[data-zdf-active="true"] {
   width: calc(100% + 6px);
   height: calc(100% + 6px);
   border: 2px solid transparent;
-  border-top-color: #2563eb;
+  border-top-color: #6366f1;
   border-radius: 50%;
   animation: zdf-spin 0.8s linear infinite;
 }
@@ -558,7 +533,7 @@ body[data-zdf-active="true"] {
 @media (prefers-color-scheme: dark) {
   .zdf-floating-btn {
     background: rgba(15, 23, 42, 0.85);
-    border-color: rgba(147, 197, 253, 0.35);
+    border-color: rgba(165, 180, 252, 0.35);
   }
   
   .zdf-floating-btn:hover {
@@ -573,6 +548,13 @@ body[data-zdf-active="true"] {
   .zdf-floating-btn:hover > .zdf-float-icon,
   .zdf-floating-btn:hover > .zdf-float-icon-img {
     color: #fff;
+  }
+}
+
+/* 暗色模式 - dark border for floating btn */
+@media (prefers-color-scheme: dark) {
+  .zdf-floating-btn {
+    border-color: rgba(165, 180, 252, 0.35);
   }
 }
 
@@ -605,105 +587,5 @@ body[data-zdf-active="true"] {
     width: 95%;
     max-height: 70vh;
     padding: 16px;
-  }
-}
-
-/* ========== 截图按钮（与翻译按钮统一风格，更克制） ========== */
-.zdf-capture-btn {
-  position: fixed;
-  left: 0;
-  top: 0;
-  width: 30px;
-  height: 30px;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(37, 99, 235, 0.35);
-  border-radius: 10px;
-  cursor: pointer;
-  z-index: 99999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 14px rgba(29, 78, 216, 0.18);
-  transition: opacity 0.2s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), background 0.18s ease, box-shadow 0.18s ease;
-  animation: zdf-float-in 0.25s ease-out;
-}
-
-.zdf-capture-btn:hover {
-  transform: translateY(-1px) scale(1.05);
-  background: rgba(255, 255, 255, 0.99);
-  box-shadow: 0 8px 20px rgba(29, 78, 216, 0.26);
-}
-
-.zdf-capture-btn:active {
-  transform: scale(0.96);
-}
-
-.zdf-capture-btn svg,
-.zdf-capture-btn .zdf-float-icon-img,
-.zdf-capture-btn .zdf-capture-icon {
-  width: 15px;
-  height: 15px;
-  color: #2563eb;
-}
-
-.zdf-capture-btn.zdf-action-hidden {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.zdf-capture-btn.zdf-action-hidden {
-  transform: translateY(8px) scale(0.92);
-}
-
-.zdf-capture-btn.zdf-action-visible {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  pointer-events: auto;
-}
-
-.zdf-capture-btn.zdf-capture-loading {
-  animation: zdf-float-pulse 1s ease-in-out infinite;
-  pointer-events: none;
-}
-
-.zdf-capture-btn.zdf-capture-loading::after {
-  content: '';
-  position: absolute;
-  width: calc(100% + 6px);
-  height: calc(100% + 6px);
-  border: 2px solid transparent;
-  border-top-color: #60a5fa;
-  border-radius: 12px;
-  animation: zdf-spin 0.8s linear infinite;
-}
-
-/* PDF 导出按钮：与截图按钮成组排列 */
-.zdf-pdf-btn {
-}
-
-@media (prefers-color-scheme: dark) {
-  .zdf-capture-btn {
-    background: rgba(15, 23, 42, 0.88);
-    border-color: rgba(147, 197, 253, 0.42);
-  }
-  .zdf-capture-btn:hover {
-    background: rgba(15, 23, 42, 0.96);
-  }
-  .zdf-capture-btn svg,
-  .zdf-capture-btn .zdf-capture-icon {
-    color: #93c5fd;
-  }
-}
-
-@media (max-width: 768px) {
-  .zdf-capture-btn {
-    width: 28px;
-    height: 28px;
-    border-radius: 9px;
-  }
-  .zdf-capture-btn svg,
-  .zdf-capture-btn .zdf-float-icon-img {
-    width: 14px;
-    height: 14px;
   }
 }
