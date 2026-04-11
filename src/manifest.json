@@ -33,7 +33,6 @@
       "js": [
         "lib/dom-parser.js",
         "lib/translator.js",
-        "constants.js",
         "content.js"
       ],
       "run_at": "document_idle"

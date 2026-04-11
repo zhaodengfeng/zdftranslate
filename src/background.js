@@ -901,6 +901,16 @@ async function translateWithMicrosoftFree(text, targetLang, sourceLang) {
   return data[0].translations[0].text;
 }
 
+function resolveDeepLLangCode(lang) {
+  const map = {
+    'zh-CN': 'ZH',
+    'zh-TW': 'ZH-HANT',
+    'zh-HANT': 'ZH-HANT',
+    'zh-HANS': 'ZH',
+  };
+  return map[lang] || (lang || '').toUpperCase();
+}
+
 async function translateWithDeepL(text, targetLang, sourceLang) {
   const zdfConfig = await loadMergedConfig();
   const apiKey = zdfConfig?.apiKeys?.deepl;
@@ -910,9 +920,9 @@ async function translateWithDeepL(text, targetLang, sourceLang) {
 
   const params = new URLSearchParams();
   params.set('text', text);
-  params.set('target_lang', targetLang.toUpperCase());
+  params.set('target_lang', resolveDeepLLangCode(targetLang));
   if (sourceLang && sourceLang !== 'auto') {
-    params.set('source_lang', sourceLang.toUpperCase());
+    params.set('source_lang', resolveDeepLLangCode(sourceLang));
   }
 
   const baseUrl = plan === 'pro'
