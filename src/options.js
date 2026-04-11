@@ -7,7 +7,7 @@ function generateId() {
 document.addEventListener('DOMContentLoaded', async () => {
   let customServices = [];
 
-  const ADD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
+  const ADD_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
 
   const BRAND_ICON_PATHS = {
     openai: 'assets/providers/openai.png',
@@ -423,7 +423,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   updateServiceVisibility(currentService);
 
-  // Sidebar removed in new design — no-op
+  // Modern flat-cards feel: expand all providers by default
+  document.querySelectorAll('details.provider').forEach(d => d.open = true);
+
 
   // Initialize all model selectors
   for (const [service, select] of Object.entries(modelSelectors)) {

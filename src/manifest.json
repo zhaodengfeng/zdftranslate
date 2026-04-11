@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ZDFTranslate - 简单翻译",
-  "version": "27.0.0",
+  "version": "26.4.12",
   "description": "简单高效的双语对照网页翻译插件，支持多种 AI 翻译服务，免费开箱即用",
   "permissions": [
     "storage",
@@ -33,12 +33,17 @@
       "js": [
         "lib/dom-parser.js",
         "lib/translator.js",
+        "constants.js",
         "content.js"
       ],
       "run_at": "document_idle"
     }
   ],
   "options_page": "options.html",
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsG3ZR3jDpesSQJeXHmTOsX0shkozLQhoMZFIXxson5gKlLWYH+ICfHH+RWcmO5DWm+u8sOa30/cAF8PQ0XA868ug9wZGmB3DBsQua7APX4upmv0lsKLopNSLHKzLSpUk1m4IZigTGYGHyqV77cFmR94+zQuxiwEdyPvKe+TuozV67PANHso681ELSARxgPqvjcqbNDL1Jx8Xh7BEtImBUJ72mbwlv9j6iZiXlgzfCCS4/P3qpJbmZtH3ijqm8CopJR8P3CpfJ5r42jogJiqUb7iZTAHuNA8uOjY7r/GFR8hQm4HV/rnOnArzwp4PPEanXkAYkCCvnvuNl+US55EEXQIDAQAB",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
