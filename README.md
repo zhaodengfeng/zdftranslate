@@ -7,7 +7,7 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 
 ## Latest Release
 
-- **Version:** `26.3.7`
+- **Version:** `26.4.12`
 
 ## Features
 
@@ -30,11 +30,20 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 
 ### Install from release package
 
-1. Download and unzip `zdftranslate-26.3.7.zip`
+1. Download and unzip `zdftranslate-v26.4.12.zip` from [Releases](https://github.com/zhaodengfeng/zdftranslate/releases)
 2. Open `chrome://extensions/`
 3. Enable **Developer mode**
 4. Click **Load unpacked**
 5. Select the extracted folder (the folder containing `manifest.json`)
+
+## Release Highlights (v26.4.12)
+
+- **MV3 Stability** — Background modules inlined into a single `background.js`, eliminating `importScripts` load failures
+- **Fixed Free Translation** — Google Free / Microsoft Free endpoints restored; batch merging disabled to prevent paragraph misalignment and missed translations
+- **Sequential Translation** — Page now translates top-to-bottom (headings → paragraphs → leaf containers) with a soft breathing pulse animation while waiting
+- **Modernized Options UI** — Flat cards, two-column custom service grid, fixed oversized add-button icon
+- **Fixed DOM Layout** — Translation containers now use `span` inside `<p>` tags to prevent browser auto-splitting
+- **DeepL Fix** — Proper `target_lang` mapping for Chinese (`zh-CN` → `ZH`, `zh-TW` → `ZH-HANT`)
 
 ## Configuration
 
