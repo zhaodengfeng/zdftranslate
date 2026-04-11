@@ -1,6 +1,6 @@
 # ZDFTranslate
 
-A simple and efficient bilingual translation Chrome extension. Supports multiple AI translation services, free and ready to use.
+简洁高效的双语对照网页翻译插件，支持多种 AI 翻译服务，免费开箱即用。
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/dnjhjgnofonkmcbgbdlfmhfpfjfidfae?color=4285F4&label=Chrome%20Web%20Store&logo=google-chrome&logoColor=white)](https://chrome.google.com/webstore/detail/dnjhjgnofonkmcbgbdlfmhfpfjfidfae)
 [![License](https://img.shields.io/github/license/zhaodengfeng/zdftranslate?color=blue)](LICENSE)
@@ -11,16 +11,17 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 
 ## Features
 
-- **Bilingual Display** — Side-by-side original and translated text
-- **Multiple Modes** — Bilingual / Replace / Hover translation
-- **Save as Image** — Export current mode (original / bilingual) as image
-- **Export as PDF** — Export current mode (original / bilingual) as paginated PDF
-- **YouTube Dual Subtitles** — Manual toggle via YouTube player button (no forced auto-enable)
-- **OpenRouter Support** — Access hundreds of models via OpenRouter (GPT-4o, Claude 3.5, Gemini Pro, etc.)
-- **Custom Services** — Add any OpenAI or Anthropic compatible API endpoints
-- **Multiple Providers** — Google Translate, DeepL, OpenAI, Kimi, Zhipu, DeepSeek, Alibaba Cloud
-- **Custom Styles** — Adjustable colors, font size, spacing
-- **Official-style Provider Icons** — Service/model selectors support high-recognition brand-style icons
+- **免费开箱即用** — 内置 Microsoft Translator (Free) 与 Google Translate (Free)，无需配置 API Key
+- **双语对照 / 纯译文** — 两种显示模式随心切换，译文与原文段落一一对应
+- **顺序渐进翻译** — 从页面标题到正文按文档流逐段翻译，配合呼吸闪烁动效，直观感知进度
+- **多服务商支持** — 支持 DeepL、OpenAI、Claude、Gemini、Kimi、智谱 GLM、阿里百炼 (Qwen)、DeepSeek、OpenRouter
+- **自定义服务** — 添加任意兼容 OpenAI (`/v1/chat/completions`) 或 Anthropic (`/v1/messages`) 格式的 API 端点
+- **Prompt 预设** — 通用、新闻、学术、技术、文学、社交媒体六种风格（仅对 LLM 服务生效）
+- **AI 内容感知** — 可选将文章标题/摘要作为上下文传入，提升翻译准确度
+- **远程模型列表** — 一键获取服务商最新可用模型，支持自定义模型名
+- **划词翻译** — 选中文本后通过右键菜单或悬浮按钮快速翻译
+- **自定义样式** — 可调整译文颜色、字号、行间距与背景高亮
+- **服务图标识别** — 翻译服务与模型选择器均带有高辨识度品牌图标
 
 ## Install
 
@@ -47,20 +48,22 @@ A simple and efficient bilingual translation Chrome extension. Supports multiple
 
 ## Configuration
 
-Click the extension icon → Settings to configure:
-- Choose a translation provider (free providers and API providers supported)
-- Enter your API key for advanced AI models
-- Configure custom API endpoints in the service settings
-- Customize display styles and behavior options
+Click the extension icon → **Settings** to configure:
+- Select a translation provider (free or API-based)
+- Enter API keys for AI/advanced models
+- Choose a Prompt preset and enable AI content awareness
+- Add custom API endpoints
+- Adjust display styles (color, font size, line spacing)
 
 ## API Keys
 
 | Provider | Get API Key | Notes |
 |----------|------------|-------|
-| Google Translate | [Cloud Console](https://console.cloud.google.com/) → Enable Cloud Translation API → Create Credentials | Paid, usage-based |
 | DeepL | [DeepL API](https://www.deepl.com/pro-api) → Sign up | Free tier available (keys ending in `:fx`) |
 | OpenAI | [Platform](https://platform.openai.com/api-keys) → Create API Key | Paid, usage-based |
-| **OpenRouter** | [OpenRouter Keys](https://openrouter.ai/keys) | Access to many models |
+| Claude | [Anthropic Console](https://console.anthropic.com/settings/keys) | Paid, usage-based |
+| Gemini | [Google AI Studio](https://aistudio.google.com/apikey) | Free tier available |
+| **OpenRouter** | [OpenRouter Keys](https://openrouter.ai/keys) | Access to hundreds of models |
 | **Custom** | Any compatible provider | Supports `/v1/chat/completions` or Anthropic format |
 | Kimi | [Moonshot Platform](https://platform.moonshot.cn/) → API Keys | Free tier available |
 | Zhipu AI | [Open Platform](https://open.bigmodel.cn/) → API Keys | Free tier available |
