@@ -271,7 +271,6 @@ function extractChatCompletionText(data, serviceName) {
   throw new Error(`${serviceName} API 返回格式错误`);
 }
 
-const LAST_REQUEST_TIME_KEY = 'lastRequestTime';
 const MIN_REQUEST_INTERVAL_BY_SERVICE = {
   default: 80,
   'google-free': 120,
@@ -312,23 +311,18 @@ self.addEventListener('error', (event) => {
   console.error('[ZDFTranslate] worker error:', event?.message || event);
 });
 
+const lastRequestTimes = new Map();
+
 async function fetchWithRetry(url, options, serviceName, maxRetries = 2) {
   const now = Date.now();
   const minInterval = MIN_REQUEST_INTERVAL_BY_SERVICE[serviceName] || MIN_REQUEST_INTERVAL_BY_SERVICE.default;
 
-  try {
-    const result = await chrome.storage.session.get([LAST_REQUEST_TIME_KEY]);
-    const times = result?.[LAST_REQUEST_TIME_KEY] || {};
-    const lastTime = times[serviceName] || 0;
-    const waitTime = minInterval - (now - lastTime);
-    if (waitTime > 0) {
-      await sleep(waitTime);
-    }
-    times[serviceName] = Date.now();
-    await chrome.storage.session.set({ [LAST_REQUEST_TIME_KEY]: times });
-  } catch (e) {
-    // 如果 storage 读取失败，继续执行但不做限流
+  const lastTime = lastRequestTimes.get(serviceName) || 0;
+  const waitTime = minInterval - (now - lastTime);
+  if (waitTime > 0) {
+    await sleep(waitTime);
   }
+  lastRequestTimes.set(serviceName, Date.now());
 
   const timeoutMs = REQUEST_TIMEOUT_BY_SERVICE[serviceName] || REQUEST_TIMEOUT_BY_SERVICE.default;
 
@@ -673,7 +667,16 @@ async function decryptApiKeys(encryptedObj, key) {
   return JSON.parse(decoder.decode(decrypted));
 }
 
+let cachedMergedConfig = null;
+
 async function loadMergedConfig() {
+  if (cachedMergedConfig) return cachedMergedConfig;
+  const config = await loadMergedConfigFromStorage();
+  cachedMergedConfig = config;
+  return config;
+}
+
+async function loadMergedConfigFromStorage() {
   const [syncResult, localResult] = await Promise.all([
     chrome.storage.sync.get(['zdfConfig']),
     chrome.storage.local.get([API_KEYS_STORAGE_KEY, ENCRYPTION_KEY_STORAGE_KEY]),
@@ -726,116 +729,62 @@ async function saveMergedConfig(config) {
   const encrypted = await encryptApiKeys(apiKeys, key);
   await chrome.storage.sync.set({ zdfConfig: syncConfig });
   await chrome.storage.local.set({ [API_KEYS_STORAGE_KEY]: encrypted });
+  cachedMergedConfig = { ...syncConfig, apiKeys };
 }
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'sync' && changes.zdfConfig) {
+    cachedMergedConfig = null;
+  } else if (area === 'local' && (changes[API_KEYS_STORAGE_KEY] || changes[ENCRYPTION_KEY_STORAGE_KEY])) {
+    cachedMergedConfig = null;
+  }
+});
 
 // ========================================
 // 6. background/providers.js - Translation providers
 // ========================================
-async function translateWithKimi(text, targetLang, sourceLang, modelOverride) {
+
+// Provider spec table — most LLM services share the OpenAI-compatible shape
+const PROVIDER_SPECS = {
+  kimi:     { url: 'https://api.moonshot.cn/v1/chat/completions', maxRetries: 2, singleUserMessage: true, temperature: 1 },
+  aliyun:   { url: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', maxRetries: 4, singleUserMessage: true, temperature: 0.3 },
+  zhipu:    { url: 'https://open.bigmodel.cn/api/paas/v4/chat/completions' },
+  openai:   { url: 'https://api.openai.com/v1/chat/completions' },
+  deepseek: { url: 'https://api.deepseek.com/chat/completions' },
+  openrouter: { url: 'https://openrouter.ai/api/v1/chat/completions', maxTokens: 2000, extraHeaders: { 'HTTP-Referer': 'https://github.com/zdf-translate', 'X-Title': 'ZDFTranslate' } },
+};
+
+async function translateLLMBySpec(service, text, targetLang, modelOverride) {
+  const spec = PROVIDER_SPECS[service];
   const zdfConfig = await loadMergedConfig();
-  const apiKey = zdfConfig?.apiKeys?.kimi;
-  const model = resolveModelForService(zdfConfig, 'kimi', modelOverride);
+  const apiKey = zdfConfig?.apiKeys?.[service];
+  const model = resolveModelForService(zdfConfig, service, modelOverride);
 
-  ensureApiKey(apiKey, 'kimi');
+  ensureApiKey(apiKey, service);
 
-  const { system, user } = buildTranslationMessages(targetLang, text, zdfConfig?.promptPreset);
-  const response = await fetchWithRetry(
-    'https://api.moonshot.cn/v1/chat/completions',
-    {
+  if (spec.singleUserMessage) {
+    const { system, user } = buildTranslationMessages(targetLang, text, zdfConfig?.promptPreset);
+    const temperature = spec.temperature ?? resolveTemperatureForService(service, model);
+    const response = await fetchWithRetry(spec.url, {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: `${system}\n\n${user}` }],
-        temperature: 1,
-      }),
-    },
-    'kimi',
-    2,
-  );
-
-  const data = await response.json();
-  return extractChatCompletionText(data, 'kimi');
-}
-
-async function translateWithAliyun(text, targetLang, sourceLang, modelOverride) {
-  const zdfConfig = await loadMergedConfig();
-  const apiKey = zdfConfig?.apiKeys?.aliyun;
-  const model = resolveModelForService(zdfConfig, 'aliyun', modelOverride);
-
-  ensureApiKey(apiKey, 'aliyun');
-
-  const { system, user } = buildTranslationMessages(targetLang, text, zdfConfig?.promptPreset);
-  const response = await fetchWithRetry(
-    'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
-    {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: 'user', content: `${system}\n\n${user}` }],
-        temperature: 0.3,
-      }),
-    },
-    'aliyun',
-    4,
-  );
-
-  const data = await response.json();
-  return extractChatCompletionText(data, 'aliyun');
-}
-
-async function translateWithZhipu(text, targetLang, sourceLang, modelOverride) {
-  const zdfConfig = await loadMergedConfig();
-  const apiKey = zdfConfig?.apiKeys?.zhipu;
-  const model = resolveModelForService(zdfConfig, 'zhipu', modelOverride);
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, messages: [{ role: 'user', content: `${system}\n\n${user}` }], temperature }),
+    }, service, spec.maxRetries || 2);
+    const data = await response.json();
+    return extractChatCompletionText(data, service);
+  }
 
   return await callOpenAICompatibleTranslate({
-    serviceName: 'zhipu',
-    url: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+    serviceName: service,
+    url: spec.url,
     apiKey,
     model,
     targetLang,
     text,
+    maxRetries: spec.maxRetries || 2,
+    maxTokens: spec.maxTokens,
     promptPreset: zdfConfig?.promptPreset,
-  });
-}
-
-async function translateWithOpenAI(text, targetLang, sourceLang, modelOverride) {
-  const zdfConfig = await loadMergedConfig();
-  const apiKey = zdfConfig?.apiKeys?.openai;
-  const model = resolveModelForService(zdfConfig, 'openai', modelOverride);
-
-  return await callOpenAICompatibleTranslate({
-    serviceName: 'openai',
-    url: 'https://api.openai.com/v1/chat/completions',
-    apiKey,
-    model,
-    targetLang,
-    text,
-    promptPreset: zdfConfig?.promptPreset,
-  });
-}
-
-async function translateWithDeepSeek(text, targetLang, sourceLang, modelOverride) {
-  const zdfConfig = await loadMergedConfig();
-  const apiKey = zdfConfig?.apiKeys?.deepseek;
-  const model = resolveModelForService(zdfConfig, 'deepseek', modelOverride);
-
-  return await callOpenAICompatibleTranslate({
-    serviceName: 'deepseek',
-    url: 'https://api.deepseek.com/chat/completions',
-    apiKey,
-    model,
-    targetLang,
-    text,
-    promptPreset: zdfConfig?.promptPreset,
+    headers: spec.extraHeaders || {},
   });
 }
 
@@ -1022,25 +971,8 @@ async function translateWithClaude(text, targetLang, sourceLang, modelOverride) 
 }
 
 async function translateWithOpenRouter(text, targetLang, sourceLang, modelOverride) {
-  const zdfConfig = await loadMergedConfig();
-  const apiKey = zdfConfig?.apiKeys?.openrouter;
-  const model = resolveModelForService(zdfConfig, 'openrouter', modelOverride);
-
   try {
-    return await callOpenAICompatibleTranslate({
-      serviceName: 'openrouter',
-      url: 'https://openrouter.ai/api/v1/chat/completions',
-      apiKey,
-      model,
-      targetLang,
-      text,
-      maxTokens: 2000,
-      promptPreset: zdfConfig?.promptPreset,
-      headers: {
-        'HTTP-Referer': 'https://github.com/zdf-translate',
-        'X-Title': 'ZDFTranslate',
-      },
-    });
+    return await translateLLMBySpec('openrouter', text, targetLang, modelOverride);
   } catch (error) {
     if (error.message?.includes('404') && error.message?.includes('data policy')) {
       throw new Error('OpenRouter 隐私设置错误：当前模型需要调整数据使用策略。\n\n解决方法：\n1. 访问 https://openrouter.ai/settings/privacy\n2. 开启 "Allow my prompts to be used for training" 或选择允许免费模型使用的选项\n3. 或者更换为不需要数据共享的模型（如 openai/gpt-4o-mini）');
@@ -1117,95 +1049,25 @@ async function translateWithCustomService(serviceId, text, targetLang, sourceLan
 const TRANSLATION_HANDLER_MAP = {
   'microsoft-free': translateWithMicrosoftFree,
   'google-free': translateWithGoogleFree,
-  kimi: translateWithKimi,
-  aliyun: translateWithAliyun,
-  zhipu: translateWithZhipu,
-  openai: translateWithOpenAI,
+  kimi: (text, tl, sl, m) => translateLLMBySpec('kimi', text, tl, m),
+  aliyun: (text, tl, sl, m) => translateLLMBySpec('aliyun', text, tl, m),
+  zhipu: (text, tl, sl, m) => translateLLMBySpec('zhipu', text, tl, m),
+  openai: (text, tl, sl, m) => translateLLMBySpec('openai', text, tl, m),
+  deepseek: (text, tl, sl, m) => translateLLMBySpec('deepseek', text, tl, m),
   claude: translateWithClaude,
   gemini: translateWithGemini,
-  deepseek: translateWithDeepSeek,
   deepl: translateWithDeepL,
   openrouter: translateWithOpenRouter,
 };
 
 // ========================================
-// 7. background/batch.js - Batch queue logic
+// 7. Translation dispatch
 // ========================================
-const BATCH_DELAY_MS = 60;
-const MAX_BATCH_ITEMS = 6;
-const BATCH_SEPARATOR = self.ZDF_CONSTANTS?.BATCH_SEPARATOR || '\n\n---ZDF_BATCH_BREAK---\n\n';
-
-const translationBatchQueues = new Map();
-
-function getBatchGroupKey(request) {
-  const { targetLang, sourceLang, service } = request;
-  const model = request.model || '';
-  const promptVersion = request.promptVersion || PROMPT_VERSION;
-  const awareTag = request.enableAIContentAware ? 'aware:1' : 'aware:0';
-  return `${service || 'microsoft-free'}|${sourceLang || 'auto'}|${targetLang || 'zh-CN'}|${model}|${promptVersion}|${awareTag}`;
-}
-
-function flushTranslationBatch(groupKey) {
-  const queue = translationBatchQueues.get(groupKey);
-  if (!queue || !queue.items.length) {
-    translationBatchQueues.delete(groupKey);
-    return;
-  }
-
-  const items = queue.items.splice(0, queue.items.length);
-  translationBatchQueues.delete(groupKey);
-
-  (async () => {
-    if (items.length === 1) {
-      const item = items[0];
-      try {
-        const result = await handleTranslation(item.request);
-        item.resolve(result);
-      } catch (error) {
-        item.reject(error);
-      }
-      return;
-    }
-
-    const combinedText = items.map(i => i.request.text).join(BATCH_SEPARATOR);
-    const first = items[0].request;
-    const batchRequest = { ...first, text: combinedText };
-
-    try {
-      const combinedResult = await dispatchSingleTranslation(batchRequest);
-      const parts = String(combinedResult || '').split(BATCH_SEPARATOR);
-      if (parts.length === items.length) {
-        items.forEach((item, idx) => {
-          const text = (parts[idx] ?? '').trim();
-          const cacheKey = buildTranslationCacheKey(item.request);
-          setTranslationCache(cacheKey, text);
-          item.resolve(text);
-        });
-        return;
-      }
-      throw new Error(`批量返回段落数不匹配: expected ${items.length}, got ${parts.length}`);
-    } catch (batchError) {
-      for (const item of items) {
-        try {
-          const result = await handleTranslation(item.request);
-          item.resolve(result);
-        } catch (error) {
-          item.reject(error);
-        }
-      }
-    }
-  })().catch((error) => {
-    items.forEach(item => item.reject(error));
-  });
-}
-
 function enqueueTranslationRequest(request) {
   const cacheKey = buildTranslationCacheKey(request);
   if (TRANSLATION_CACHE.has(cacheKey)) {
     return Promise.resolve(TRANSLATION_CACHE.get(cacheKey));
   }
-
-  // 批量队列依赖 Unicode 分隔符原样返回，免费及部分 API 无法保证，直接单条处理更稳
   return handleTranslation(request);
 }
 
@@ -1247,7 +1109,7 @@ function ensureContextMenu() {
     chrome.contextMenus.removeAll(() => {
       chrome.contextMenus.create({
         id: 'zdf-translate-selection',
-        title: '使用 ZDFTranslate 翻译',
+        title: chrome.i18n.getMessage('contextMenuTranslate') || '使用 ZDFTranslate 翻译',
         contexts: ['selection']
       }, () => {
         const err = chrome.runtime.lastError;
@@ -1418,6 +1280,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 });
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (sender.id !== chrome.runtime.id) return false;
   if (request.action === 'translate') {
     enqueueTranslationRequest(request)
       .then(result => sendResponse({ translatedText: result }))

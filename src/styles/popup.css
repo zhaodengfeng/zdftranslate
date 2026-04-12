@@ -12,6 +12,19 @@
   --radius: 8px;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1a1b2e;
+    --bg2: #252640;
+    --fg: #e2e8f0;
+    --fg2: #94a3b8;
+    --fg3: #64748b;
+    --accent: #818cf8;
+    --accent-light: rgba(129, 140, 248, 0.12);
+    --border: #334155;
+  }
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
@@ -100,6 +113,64 @@ body {
   text-transform: uppercase;
   letter-spacing: .4px;
   margin-bottom: 8px;
+}
+
+/* ===== Hero Toggle ===== */
+.hero-section {
+  padding-top: 8px;
+  padding-bottom: 4px;
+}
+
+.hero-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .2s;
+}
+
+.hero-btn:hover {
+  filter: brightness(1.08);
+}
+
+.hero-btn.active {
+  background: #ef4444;
+}
+
+.hero-icon {
+  display: flex;
+  align-items: center;
+}
+
+/* ===== Swap Button ===== */
+.swap-btn {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg3);
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.swap-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--accent-light);
 }
 
 /* ===== Language Row ===== */
@@ -245,7 +316,7 @@ body {
 .service-select-rich.open-up .service-select-menu { top: auto; bottom: calc(100% + 4px); }
 
 .service-select-menu::-webkit-scrollbar { width: 4px; }
-.service-select-menu::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 99px; }
+.service-select-menu::-webkit-scrollbar-thumb { background: var(--fg3); border-radius: 99px; }
 
 .service-select-item {
   width: 100%;

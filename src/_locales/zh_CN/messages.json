@@ -1,0 +1,258 @@
+{
+  "appName": {
+    "message": "ZDFTranslate - 简单翻译",
+    "description": "Extension name shown in Chrome"
+  },
+  "appDescription": {
+    "message": "简单高效的双语对照网页翻译插件，支持多种 AI 翻译服务，免费开箱即用",
+    "description": "Extension description"
+  },
+  "settings": {
+    "message": "设置",
+    "description": "Settings gear tooltip"
+  },
+  "language": {
+    "message": "语言",
+    "description": "Language section label"
+  },
+  "autoDetect": {
+    "message": "自动检测",
+    "description": "Auto-detect language option"
+  },
+  "translationService": {
+    "message": "翻译服务",
+    "description": "Translation service section label"
+  },
+  "displayMode": {
+    "message": "显示模式",
+    "description": "Display mode section label"
+  },
+  "bilingual": {
+    "message": "双语对照",
+    "description": "Bilingual display mode"
+  },
+  "translationOnly": {
+    "message": "仅译文",
+    "description": "Translation-only display mode"
+  },
+  "selectService": {
+    "message": "选择翻译服务",
+    "description": "ARIA label for service select trigger"
+  },
+  "toastSaved": {
+    "message": "已保存",
+    "description": "Toast: config saved"
+  },
+  "toastTranslating": {
+    "message": "翻译中…",
+    "description": "Toast: translating"
+  },
+  "toastTranslated": {
+    "message": "翻译完成",
+    "description": "Toast: translation done"
+  },
+  "toastError": {
+    "message": "翻译失败",
+    "description": "Toast: translation error"
+  },
+  "toastCleared": {
+    "message": "已清除翻译",
+    "description": "Toast: translations cleared"
+  },
+  "optionsTitle": {
+    "message": "ZDFTranslate 设置",
+    "description": "Options page title"
+  },
+  "providerConfig": {
+    "message": "服务商配置",
+    "description": "Provider config heading"
+  },
+  "styleSettings": {
+    "message": "样式设置",
+    "description": "Style settings heading"
+  },
+  "advancedSettings": {
+    "message": "高级设置",
+    "description": "Advanced settings heading"
+  },
+  "customServices": {
+    "message": "自定义服务",
+    "description": "Custom services heading"
+  },
+  "apiKey": {
+    "message": "API Key",
+    "description": "API Key label"
+  },
+  "apiKeyPlaceholder": {
+    "message": "输入 API Key",
+    "description": "API Key input placeholder"
+  },
+  "getModel": {
+    "message": "获取",
+    "description": "Get model link text"
+  },
+  "defaultModel": {
+    "message": "默认模型",
+    "description": "Default model label"
+  },
+  "customModel": {
+    "message": "自定义模型",
+    "description": "Custom model label"
+  },
+  "customModelPlaceholder": {
+    "message": "输入自定义模型名称",
+    "description": "Custom model placeholder"
+  },
+  "translationColor": {
+    "message": "翻译文字颜色",
+    "description": "Translation color label"
+  },
+  "promptPreset": {
+    "message": "翻译风格",
+    "description": "Prompt preset label"
+  },
+  "promptGeneral": {
+    "message": "通用翻译",
+    "description": "General prompt preset"
+  },
+  "promptNews": {
+    "message": "新闻媒体",
+    "description": "News prompt preset"
+  },
+  "promptAcademic": {
+    "message": "学术论文",
+    "description": "Academic prompt preset"
+  },
+  "promptTechnical": {
+    "message": "技术文档",
+    "description": "Technical prompt preset"
+  },
+  "promptLiterary": {
+    "message": "文学作品",
+    "description": "Literary prompt preset"
+  },
+  "promptSocial": {
+    "message": "社交媒体",
+    "description": "Social prompt preset"
+  },
+  "enableContentAware": {
+    "message": "启用上下文增强",
+    "description": "Enable AI content-aware label"
+  },
+  "enableContentAwareDesc": {
+    "message": "利用文章标题和摘要提升翻译质量",
+    "description": "AI content-aware description"
+  },
+  "enableFloatButton": {
+    "message": "启用浮动按钮",
+    "description": "Enable floating button label"
+  },
+  "enableFloatButtonDesc": {
+    "message": "在页面右下角显示快捷操作按钮",
+    "description": "Floating button description"
+  },
+  "enableSelectionTranslate": {
+    "message": "启用划词翻译",
+    "description": "Enable selection translate label"
+  },
+  "enableSelectionTranslateDesc": {
+    "message": "选中文本后显示翻译弹窗",
+    "description": "Selection translate description"
+  },
+  "deeplPlan": {
+    "message": "DeepL 套餐",
+    "description": "DeepL plan label"
+  },
+  "deeplFree": {
+    "message": "免费版",
+    "description": "DeepL Free plan"
+  },
+  "deeplPro": {
+    "message": "专业版",
+    "description": "DeepL Pro plan"
+  },
+  "saveBtn": {
+    "message": "保存设置",
+    "description": "Save button text"
+  },
+  "resetBtn": {
+    "message": "恢复默认",
+    "description": "Reset button text"
+  },
+  "saveSuccess": {
+    "message": "设置已保存",
+    "description": "Save success message"
+  },
+  "resetConfirm": {
+    "message": "确定恢复默认设置？所有配置将被清除。",
+    "description": "Reset confirmation"
+  },
+  "addCustomService": {
+    "message": "添加自定义服务",
+    "description": "Add custom service button"
+  },
+  "serviceName": {
+    "message": "服务名称",
+    "description": "Service name label"
+  },
+  "apiBaseUrl": {
+    "message": "API Base URL",
+    "description": "API base URL label"
+  },
+  "mode": {
+    "message": "接口模式",
+    "description": "API mode label"
+  },
+  "modeOpenAI": {
+    "message": "OpenAI 兼容",
+    "description": "OpenAI compatible mode"
+  },
+  "modeAnthropic": {
+    "message": "Anthropic 兼容",
+    "description": "Anthropic compatible mode"
+  },
+  "deleteService": {
+    "message": "删除",
+    "description": "Delete service button"
+  },
+  "confirmDelete": {
+    "message": "确定删除此服务？",
+    "description": "Delete confirmation"
+  },
+  "floatTranslate": {
+    "message": "翻译",
+    "description": "Floating translate button text"
+  },
+  "floatClear": {
+    "message": "清除",
+    "description": "Floating clear button text"
+  },
+  "selectionTranslate": {
+    "message": "翻译",
+    "description": "Selection translate popup action"
+  },
+  "contextMenuTranslate": {
+    "message": "使用 ZDFTranslate 翻译",
+    "description": "Context menu item text"
+  },
+  "toastSourceUpdated": {
+    "message": "源语言已更新",
+    "description": "Toast: source language updated"
+  },
+  "toastTargetUpdated": {
+    "message": "目标语言已更新",
+    "description": "Toast: target language updated"
+  },
+  "toastSwitchBilingual": {
+    "message": "已切换至双语对照",
+    "description": "Toast: switched to bilingual"
+  },
+  "toastSwitchReplace": {
+    "message": "已切换至纯译文模式",
+    "description": "Toast: switched to translation only"
+  },
+  "toastServiceSwitched": {
+    "message": "翻译服务已切换",
+    "description": "Toast: service switched"
+  }
+}

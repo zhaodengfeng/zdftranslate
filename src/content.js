@@ -1,5 +1,9 @@
 // ZDFTranslate - Content Script
-// 核心功能：识别页面主要内容并注入翻译
+
+const _t = (key, fallback) => {
+  try { return chrome.i18n.getMessage(key) || fallback; }
+  catch { return fallback; }
+};
 
 (function() {
   'use strict';
@@ -116,6 +120,7 @@
 
   // 监听配置更新
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (sender.id !== chrome.runtime.id) return false;
     if (sender?.tab?.id) {
       lastKnownTabId = sender.tab.id;
     }
@@ -514,7 +519,7 @@
       toast.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:2147483647;background:#ef4444;color:#fff;padding:10px 12px;border-radius:10px;font-size:13px;max-width:320px;box-shadow:0 8px 24px rgba(0,0,0,.24);';
       document.documentElement.appendChild(toast);
     }
-    toast.textContent = `翻译失败：${message || '请检查 API 服务设置'}`;
+    toast.textContent = `${_t('toastError', '翻译失败')}：${message || _t('toastError', '请检查 API 服务设置')}`;
     toast.style.display = 'block';
     clearTimeout(showInlineErrorToast._timer);
     showInlineErrorToast._timer = setTimeout(() => {
@@ -1378,7 +1383,7 @@
       circle.setAttribute('stroke-dasharray', '31.4 31.4');
       spinner.appendChild(circle);
       loadingSpan.appendChild(spinner);
-      loadingSpan.appendChild(document.createTextNode(' 正在努力翻译中...'));
+      loadingSpan.appendChild(document.createTextNode(' ' + _t('toastTranslating', '正在努力翻译中...')));
       translatedDiv.appendChild(loadingSpan);
       footer.style.display = 'none';
       popupLatestTranslatedText = '';
@@ -1528,7 +1533,7 @@
     const btn = document.createElement('button');
     btn.id = 'zdf-selection-quick-btn';
     btn.className = 'zdf-selection-quick-btn';
-    btn.title = '翻译选中文本';
+    btn.title = _t('selectionTranslate', '翻译选中文本');
     btn.innerHTML = `<img src="${chrome.runtime.getURL('assets/float-icon-32.png')}" alt="ZDFTranslate">`;
 
     // 防止点击按钮时触发 selection 丢失
@@ -1678,6 +1683,7 @@
 
   // 监听来自 background 的弹窗消息
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (sender.id !== chrome.runtime.id) return false;
     if (request.action === 'showTranslationPopup') {
       showTranslationPopup(
         request.originalText,
@@ -1773,8 +1779,6 @@
       btn.style.top = `${nextTop}px`;
       btn.style.right = 'auto';
       btn.style.bottom = 'auto';
-      if (floatingActionsOpen) {
-      }
     };
 
     const onPointerMove = (ev) => {
@@ -1862,7 +1866,7 @@
     const btn = document.createElement('div');
     btn.id = 'zdf-floating-translate-btn';
     btn.className = 'zdf-floating-btn';
-    btn.title = '点击翻译页面';
+    btn.title = _t('floatTranslate', '点击翻译页面');
 
     // 翻译图标 + 右上角绿勾徽章
     const floatIconUrl = chrome.runtime.getURL('assets/float-icon-32.png');
@@ -1932,14 +1936,14 @@
     if (translationActive) {
       // 显示绿勾徽章
       btn.classList.add('zdf-float-translated');
-      btn.title = '点击恢复原文';
-      btn.setAttribute('data-tip', '恢复原文');
+      btn.title = _t('floatClear', '点击恢复原文');
+      btn.setAttribute('data-tip', _t('floatClear', '恢复原文'));
       if (badge) badge.style.display = 'flex';
     } else {
       // 隐藏绿勾徽章
       btn.classList.remove('zdf-float-translated');
-      btn.title = isTranslating ? '翻译中...点击取消' : '点击翻译页面';
-      btn.setAttribute('data-tip', isTranslating ? '' : '翻译页面');
+      btn.title = isTranslating ? _t('toastTranslating', '翻译中...') : _t('floatTranslate', '点击翻译页面');
+      btn.setAttribute('data-tip', isTranslating ? '' : _t('floatTranslate', '翻译页面'));
       if (badge) badge.style.display = 'none';
     }
   }

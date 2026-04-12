@@ -1,5 +1,18 @@
 // ZDFTranslate - Popup Script
-// 处理弹出窗口的交互逻辑
+
+// i18n: apply data-i18n attributes
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const msg = chrome.i18n.getMessage(key);
+    if (msg) el.textContent = msg;
+  });
+  document.querySelectorAll('[data-i18n-title]').forEach(el => {
+    const key = el.getAttribute('data-i18n-title');
+    const msg = chrome.i18n.getMessage(key);
+    if (msg) el.title = msg;
+  });
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
   // 获取DOM元素
@@ -9,6 +22,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const statusToast = document.getElementById('statusToast');
   const openOptions = document.getElementById('openOptions');
   const popupVersion = document.getElementById('popupVersion');
+  const translateToggle = document.getElementById('translateToggle');
+  const heroLabel = document.getElementById('heroLabel');
+  const swapLangBtn = document.getElementById('swapLangBtn');
+
+  applyI18n();
 
   if (popupVersion && chrome?.runtime?.getManifest) {
     popupVersion.textContent = `v${chrome.runtime.getManifest().version}`;
@@ -30,6 +48,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // Hero translate/clear toggle
+  if (translateToggle) {
+    translateToggle.addEventListener('click', async () => {
+      if (!currentTabId) return;
+      const newState = !isTranslated;
+      try {
+        await chrome.tabs.sendMessage(currentTabId, {
+          action: 'toggleTranslation',
+          enabled: newState,
+        });
+        isTranslated = newState;
+        await setTabStatusInBackground(currentTabId, isTranslated);
+        updateHeroButton();
+      } catch (e) {
+        showToast(chrome.i18n.getMessage('toastError') || '操作失败');
+      }
+    });
+  }
+
+  // Swap languages
+  if (swapLangBtn) {
+    swapLangBtn.addEventListener('click', async () => {
+      const s = sourceLang.value;
+      const t = targetLang.value;
+      // "auto" can't be a target
+      if (s === 'auto') return;
+      sourceLang.value = t;
+      targetLang.value = s;
+      await updateConfig({ sourceLang: t, targetLang: s });
+      showToast(chrome.i18n.getMessage('toastSaved') || '已保存');
+    });
+  }
+
   const SERVICE_ICON_PATHS = {
     'microsoft-free': 'assets/providers/microsoft.svg',
     'google-free': 'assets/providers/google.png',
@@ -38,7 +89,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     zhipu: 'assets/providers/zhipu.png',
     deepseek: 'assets/providers/deepseek.png',
     gemini: 'assets/providers/google.png',
-    claude: 'assets/providers/openai.png',
+    claude: 'assets/providers/claude.svg',
     deepl: 'assets/providers/deepl.svg',
     openai: 'assets/providers/openai.png',
     openrouter: 'assets/providers/openrouter.png',
@@ -58,11 +109,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!rich) {
       rich = document.createElement('div');
       rich.className = 'service-select-rich';
-      rich.innerHTML = '<button type="button" class="service-select-trigger"></button><div class="service-select-menu"></div>';
+      rich.setAttribute('role', 'combobox');
+      rich.setAttribute('aria-expanded', 'false');
+      rich.setAttribute('aria-haspopup', 'listbox');
+      rich.innerHTML = `<button type="button" class="service-select-trigger" aria-label="${chrome.i18n.getMessage('selectService')}"></button><div class="service-select-menu" role="listbox"></div>`;
       card.appendChild(rich);
 
       document.addEventListener('click', (e) => {
-        if (!rich.contains(e.target)) rich.classList.remove('open');
+        if (!rich.contains(e.target)) {
+          rich.classList.remove('open');
+          rich.setAttribute('aria-expanded', 'false');
+        }
       });
     }
 
@@ -76,18 +133,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     menu.innerHTML = '';
-    options.forEach((opt) => {
+    menu.setAttribute('aria-activedescendant', '');
+    options.forEach((opt, idx) => {
       const item = document.createElement('button');
       item.type = 'button';
       item.className = 'service-select-item';
+      item.setAttribute('role', 'option');
+      item.id = `service-opt-${idx}`;
       if (opt.disabled) item.classList.add('disabled');
-      if (opt.value === translationService.value) item.classList.add('active');
+      if (opt.value === translationService.value) {
+        item.classList.add('active');
+        item.setAttribute('aria-selected', 'true');
+        menu.setAttribute('aria-activedescendant', item.id);
+      }
       item.innerHTML = `<img src="${serviceIcon(opt.value)}" class="service-icon" alt=""><span class="service-text">${opt.textContent || ''}</span>`;
       item.addEventListener('click', async () => {
         if (opt.disabled) return;
         translationService.value = opt.value;
         translationService.dispatchEvent(new Event('change', { bubbles: true }));
         rich.classList.remove('open');
+        rich.setAttribute('aria-expanded', 'false');
         renderServiceSelectWithIcons();
       });
       menu.appendChild(item);
@@ -96,6 +161,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     trigger.onclick = () => {
       const willOpen = !rich.classList.contains('open');
       rich.classList.toggle('open');
+      rich.setAttribute('aria-expanded', String(willOpen));
       if (willOpen) {
         const triggerRect = trigger.getBoundingClientRect();
         const spaceBelow = window.innerHeight - triggerRect.bottom;
@@ -104,6 +170,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         rich.classList.toggle('open-up', openUp);
         const available = Math.max(120, Math.min(240, (openUp ? spaceAbove : spaceBelow) - 12));
         menu.style.maxHeight = `${available}px`;
+        const activeItem = menu.querySelector('.service-select-item.active');
+        if (activeItem) activeItem.scrollIntoView({ block: 'nearest' });
       }
     };
     translationService.style.display = 'none';
@@ -180,11 +248,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   await refreshTranslationStatus();
 
   // content script 主动推送状态变更（实时同步）
-  chrome.runtime.onMessage.addListener((message) => {
+  chrome.runtime.onMessage.addListener((message, sender) => {
+    if (sender.id !== chrome.runtime.id) return false;
     if (!message || message.action !== 'translationStatusChanged') return;
     if (!currentTabId || message.tabId !== currentTabId) return;
 
     isTranslated = !!message.isTranslated;
+    updateHeroButton();
   });
 
   // 短轮询兜底：避免极端情况下消息丢失导致状态不同步
@@ -192,7 +262,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     refreshTranslationStatus().catch(() => {});
   }, 3000);
 
-  window.addEventListener('unload', () => {
+  window.addEventListener('pagehide', () => {
     clearInterval(statusPollingTimer);
   });
   
@@ -241,12 +311,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 事件监听（其他）
   sourceLang.addEventListener('change', async () => {
     await updateConfig({ sourceLang: sourceLang.value });
-    showToast('源语言已更新');
+    showToast(chrome.i18n.getMessage('toastSourceUpdated'));
   });
 
   targetLang.addEventListener('change', async () => {
     await updateConfig({ targetLang: targetLang.value });
-    showToast('目标语言已更新');
+    showToast(chrome.i18n.getMessage('toastTargetUpdated'));
   });
 
   // 显示模式切换逻辑
@@ -255,7 +325,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (e.target.checked) {
         const newValue = e.target.value;
         await updateConfig({ displayMode: newValue });
-        showToast(newValue === 'bilingual' ? '已切换至双语对照' : '已切换至纯译文模式');
+        showToast(newValue === 'bilingual' ? chrome.i18n.getMessage('toastSwitchBilingual') : chrome.i18n.getMessage('toastSwitchReplace'));
       }
     });
   });
@@ -263,7 +333,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   translationService.addEventListener('change', async () => {
     await updateConfig({ translationService: translationService.value });
     renderServiceSelectWithIcons();
-    showToast('翻译服务已切换');
+    showToast(chrome.i18n.getMessage('toastServiceSwitched'));
   });
 
   // 说明：翻译/恢复由页面右下角悬浮按钮控制，popup 不再直接触发。
@@ -283,7 +353,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else {
       isTranslated = await getTabStatusFromBackground(currentTabId);
     }
+    updateHeroButton();
+  }
 
+  function updateHeroButton() {
+    if (!translateToggle) return;
+    translateToggle.classList.toggle('active', isTranslated);
+    if (heroLabel) {
+      heroLabel.textContent = isTranslated
+        ? chrome.i18n.getMessage('floatClear') || '清除翻译'
+        : chrome.i18n.getMessage('floatTranslate') || '翻译页面';
+    }
   }
 
 

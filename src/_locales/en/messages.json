@@ -1,0 +1,258 @@
+{
+  "appName": {
+    "message": "ZDFTranslate - Simple Translator",
+    "description": "Extension name shown in Chrome"
+  },
+  "appDescription": {
+    "message": "Simple bilingual web page translator supporting multiple AI translation services, free and ready to use",
+    "description": "Extension description"
+  },
+  "settings": {
+    "message": "Settings",
+    "description": "Settings gear tooltip"
+  },
+  "language": {
+    "message": "Language",
+    "description": "Language section label"
+  },
+  "autoDetect": {
+    "message": "Auto Detect",
+    "description": "Auto-detect language option"
+  },
+  "translationService": {
+    "message": "Translation Service",
+    "description": "Translation service section label"
+  },
+  "displayMode": {
+    "message": "Display Mode",
+    "description": "Display mode section label"
+  },
+  "bilingual": {
+    "message": "Bilingual",
+    "description": "Bilingual display mode"
+  },
+  "translationOnly": {
+    "message": "Translation Only",
+    "description": "Translation-only display mode"
+  },
+  "selectService": {
+    "message": "Select translation service",
+    "description": "ARIA label for service select trigger"
+  },
+  "toastSaved": {
+    "message": "Saved",
+    "description": "Toast: config saved"
+  },
+  "toastTranslating": {
+    "message": "Translating…",
+    "description": "Toast: translating"
+  },
+  "toastTranslated": {
+    "message": "Translation complete",
+    "description": "Toast: translation done"
+  },
+  "toastError": {
+    "message": "Translation failed",
+    "description": "Toast: translation error"
+  },
+  "toastCleared": {
+    "message": "Translations cleared",
+    "description": "Toast: translations cleared"
+  },
+  "optionsTitle": {
+    "message": "ZDFTranslate Settings",
+    "description": "Options page title"
+  },
+  "providerConfig": {
+    "message": "Provider Configuration",
+    "description": "Provider config heading"
+  },
+  "styleSettings": {
+    "message": "Style Settings",
+    "description": "Style settings heading"
+  },
+  "advancedSettings": {
+    "message": "Advanced Settings",
+    "description": "Advanced settings heading"
+  },
+  "customServices": {
+    "message": "Custom Services",
+    "description": "Custom services heading"
+  },
+  "apiKey": {
+    "message": "API Key",
+    "description": "API Key label"
+  },
+  "apiKeyPlaceholder": {
+    "message": "Enter API Key",
+    "description": "API Key input placeholder"
+  },
+  "getModel": {
+    "message": "Get",
+    "description": "Get model link text"
+  },
+  "defaultModel": {
+    "message": "Default Model",
+    "description": "Default model label"
+  },
+  "customModel": {
+    "message": "Custom Model",
+    "description": "Custom model label"
+  },
+  "customModelPlaceholder": {
+    "message": "Enter custom model name",
+    "description": "Custom model placeholder"
+  },
+  "translationColor": {
+    "message": "Translation Color",
+    "description": "Translation color label"
+  },
+  "promptPreset": {
+    "message": "Translation Style",
+    "description": "Prompt preset label"
+  },
+  "promptGeneral": {
+    "message": "General",
+    "description": "General prompt preset"
+  },
+  "promptNews": {
+    "message": "News",
+    "description": "News prompt preset"
+  },
+  "promptAcademic": {
+    "message": "Academic",
+    "description": "Academic prompt preset"
+  },
+  "promptTechnical": {
+    "message": "Technical",
+    "description": "Technical prompt preset"
+  },
+  "promptLiterary": {
+    "message": "Literary",
+    "description": "Literary prompt preset"
+  },
+  "promptSocial": {
+    "message": "Social Media",
+    "description": "Social prompt preset"
+  },
+  "enableContentAware": {
+    "message": "Enable context enhancement",
+    "description": "Enable AI content-aware label"
+  },
+  "enableContentAwareDesc": {
+    "message": "Use article title and summary to improve translation quality",
+    "description": "AI content-aware description"
+  },
+  "enableFloatButton": {
+    "message": "Enable floating button",
+    "description": "Enable floating button label"
+  },
+  "enableFloatButtonDesc": {
+    "message": "Show quick action button in bottom-right corner",
+    "description": "Floating button description"
+  },
+  "enableSelectionTranslate": {
+    "message": "Enable selection translation",
+    "description": "Enable selection translate label"
+  },
+  "enableSelectionTranslateDesc": {
+    "message": "Show translation popup after text selection",
+    "description": "Selection translate description"
+  },
+  "deeplPlan": {
+    "message": "DeepL Plan",
+    "description": "DeepL plan label"
+  },
+  "deeplFree": {
+    "message": "Free",
+    "description": "DeepL Free plan"
+  },
+  "deeplPro": {
+    "message": "Pro",
+    "description": "DeepL Pro plan"
+  },
+  "saveBtn": {
+    "message": "Save Settings",
+    "description": "Save button text"
+  },
+  "resetBtn": {
+    "message": "Reset to Default",
+    "description": "Reset button text"
+  },
+  "saveSuccess": {
+    "message": "Settings saved",
+    "description": "Save success message"
+  },
+  "resetConfirm": {
+    "message": "Reset all settings to default? All configuration will be cleared.",
+    "description": "Reset confirmation"
+  },
+  "addCustomService": {
+    "message": "Add Custom Service",
+    "description": "Add custom service button"
+  },
+  "serviceName": {
+    "message": "Service Name",
+    "description": "Service name label"
+  },
+  "apiBaseUrl": {
+    "message": "API Base URL",
+    "description": "API base URL label"
+  },
+  "mode": {
+    "message": "API Mode",
+    "description": "API mode label"
+  },
+  "modeOpenAI": {
+    "message": "OpenAI Compatible",
+    "description": "OpenAI compatible mode"
+  },
+  "modeAnthropic": {
+    "message": "Anthropic Compatible",
+    "description": "Anthropic compatible mode"
+  },
+  "deleteService": {
+    "message": "Delete",
+    "description": "Delete service button"
+  },
+  "confirmDelete": {
+    "message": "Delete this service?",
+    "description": "Delete confirmation"
+  },
+  "floatTranslate": {
+    "message": "Translate",
+    "description": "Floating translate button text"
+  },
+  "floatClear": {
+    "message": "Clear",
+    "description": "Floating clear button text"
+  },
+  "selectionTranslate": {
+    "message": "Translate",
+    "description": "Selection translate popup action"
+  },
+  "contextMenuTranslate": {
+    "message": "Translate with ZDFTranslate",
+    "description": "Context menu item text"
+  },
+  "toastSourceUpdated": {
+    "message": "Source language updated",
+    "description": "Toast: source language updated"
+  },
+  "toastTargetUpdated": {
+    "message": "Target language updated",
+    "description": "Toast: target language updated"
+  },
+  "toastSwitchBilingual": {
+    "message": "Switched to bilingual mode",
+    "description": "Toast: switched to bilingual"
+  },
+  "toastSwitchReplace": {
+    "message": "Switched to translation only mode",
+    "description": "Toast: switched to translation only"
+  },
+  "toastServiceSwitched": {
+    "message": "Translation service changed",
+    "description": "Toast: service switched"
+  }
+}

@@ -19,6 +19,24 @@
   --transition: 200ms ease;
 }
 
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f172a;
+    --bg-card: #1e293b;
+    --fg: #e2e8f0;
+    --fg2: #94a3b8;
+    --fg3: #64748b;
+    --accent: #818cf8;
+    --accent-hover: #6366f1;
+    --accent-light: rgba(129, 140, 248, 0.12);
+    --accent-ghost: rgba(129, 140, 248, 0.08);
+    --border: #334155;
+    --shadow: 0 1px 2px rgba(0,0,0,.2);
+    --shadow-card: 0 4px 12px rgba(0,0,0,.25);
+    --shadow-elevated: 0 8px 24px rgba(0,0,0,.35);
+  }
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
@@ -40,8 +58,7 @@ body {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(255,255,255,0.92);
-  backdrop-filter: saturate(180%) blur(10px);
+  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
   border-bottom: 1px solid var(--border);
 }
 
@@ -168,8 +185,7 @@ body {
   cursor: default;
   user-select: none;
   list-style: none;
-  background: linear-gradient(180deg, #fff 0%, #fafbfc 100%);
-  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg) 100%);
 }
 
 .provider-head::-webkit-details-marker { display: none; }
@@ -343,7 +359,7 @@ body {
   padding: 5px 12px;
   border: 1px solid var(--border);
   border-radius: 7px;
-  background: #fff;
+  background: var(--bg-card);
   font-size: 12px;
   font-weight: 500;
   color: var(--fg2);
@@ -382,7 +398,7 @@ body {
   padding: 10px 18px;
   border: 1px solid #c7d2fe;
   border-radius: 999px;
-  background: #fff;
+  background: var(--bg-card);
   font-size: 13px;
   font-weight: 600;
   color: var(--accent);
@@ -420,7 +436,7 @@ body {
   padding: 9px 18px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: #fff;
+  background: var(--bg-card);
   color: var(--fg2);
   font-size: 13px;
   font-weight: 500;
@@ -441,7 +457,7 @@ body {
   height: 32px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--bg-card);
   color: var(--fg3);
   cursor: pointer;
   transition: all .15s;
@@ -450,8 +466,8 @@ body {
 .btn-icon svg { width: 16px; height: 16px; }
 
 .btn-icon:hover {
-  background: #fee2e2;
-  border-color: #fca5a5;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(252, 165, 165, 0.4);
   color: #dc2626;
 }
 
@@ -476,8 +492,7 @@ body {
   gap: 10px;
   padding: 12px 18px;
   border-bottom: 1px solid var(--border);
-  background: linear-gradient(180deg, #fff 0%, #fafbfc 100%);
-}
+  background: linear-gradient(180deg, var(--bg-card) 0%, var(--bg) 100%);}
 
 .custom-service-header .input {
   flex: 1;
@@ -528,10 +543,10 @@ body {
   left: 0;
   right: 0;
   z-index: 100;
-  background: rgba(255,255,255,0.96);
+  background: color-mix(in srgb, var(--bg-card) 96%, transparent);
   backdrop-filter: saturate(180%) blur(8px);
   border-top: 1px solid var(--border);
-  box-shadow: 0 -4px 16px rgba(0,0,0,.04);
+  box-shadow: var(--shadow-card);
 }
 
 .save-bar-inner {
@@ -621,7 +636,7 @@ body {
 .service-select-rich.open-up .service-select-menu { top: auto; bottom: calc(100% + 4px); }
 
 .service-select-menu::-webkit-scrollbar { width: 4px; }
-.service-select-menu::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 99px; }
+.service-select-menu::-webkit-scrollbar-thumb { background: var(--fg3); border-radius: 99px; }
 
 .service-select-item {
   width: 100%;

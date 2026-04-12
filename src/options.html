@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ZDFTranslate 设置</title>
+  <title data-i18n="optionsTitle">ZDFTranslate 设置</title>
   <link rel="stylesheet" href="styles/options.css">
   <link rel="stylesheet" href="styles/model-rich-select.css">
 </head>
@@ -27,30 +27,37 @@
       <!-- 翻译服务 -->
       <section class="section" id="sec-free">
         <div class="section-head">
-          <h2 class="section-title">翻译服务</h2>
-          <p class="section-desc">选择翻译引擎并配置API密钥</p>
+          <h2 class="section-title" data-i18n="translationService">翻译服务</h2>
         </div>
 
         <div class="card">
           <div class="field">
-            <label class="field-label">当前使用服务</label>
+            <label class="field-label" data-i18n="translationService">当前使用服务</label>
             <select id="activeService" class="select">
-              <option value="microsoft-free">Microsoft Translator (Free)</option>
-              <option value="google-free">Google Translate (Free)</option>
-              <option value="aliyun">阿里百炼 (Alibaba Bailian)</option>
-              <option value="deepl">DeepL API</option>
-              <option value="gemini">Google Gemini</option>
-              <option value="openrouter">OpenRouter</option>
-              <option value="deepseek">DeepSeek</option>
-              <option value="zhipu">智谱 GLM</option>
-              <option value="kimi">Kimi (Moonshot)</option>
-              <option value="openai">OpenAI</option>
-              <option value="claude">Claude (Anthropic)</option>
-              <option value="custom">自定义服务</option>
+              <optgroup label="Free">
+                <option value="microsoft-free">Microsoft Translator (Free)</option>
+                <option value="google-free">Google Translate (Free)</option>
+              </optgroup>
+              <optgroup label="LLM">
+                <option value="aliyun">阿里百炼 (Alibaba Bailian)</option>
+                <option value="deepseek">DeepSeek</option>
+                <option value="zhipu">智谱 GLM</option>
+                <option value="kimi">Kimi (Moonshot)</option>
+                <option value="openai">OpenAI</option>
+                <option value="claude">Claude (Anthropic)</option>
+                <option value="gemini">Google Gemini</option>
+                <option value="openrouter">OpenRouter</option>
+              </optgroup>
+              <optgroup label="API">
+                <option value="deepl">DeepL API</option>
+              </optgroup>
+              <optgroup label="Custom">
+                <option value="custom">自定义服务</option>
+              </optgroup>
             </select>
           </div>
           <div class="field">
-            <label class="field-label">Prompt 预设</label>
+            <label class="field-label" data-i18n="promptPreset">Prompt 预设</label>
             <select id="promptPreset" class="select">
               <option value="general">🌐 通用翻译</option>
               <option value="news">📰 新闻媒体</option>
@@ -67,7 +74,7 @@
       <!-- API 密钥 - 国内 -->
       <section class="section" id="sec-cn">
         <div class="section-head">
-          <h2 class="section-title">国内服务</h2>
+          <h2 class="section-title" data-i18n="providerConfig">国内服务</h2>
         </div>
 
         <!-- 阿里百炼 -->
@@ -82,7 +89,7 @@
               <label class="field-label">API Key</label>
               <div class="field-row">
                 <input type="password" id="aliyunApiKey" class="input" placeholder="输入阿里云百炼 API Key">
-                <a href="https://bailian.console.aliyun.com/" target="_blank" class="field-link">获取</a>
+                <a href="https://bailian.console.aliyun.com/" target="_blank" rel="noopener noreferrer" class="field-link">获取</a>
               </div>
             </div>
             <div class="field model-select">
@@ -118,7 +125,7 @@
               <label class="field-label">API Key</label>
               <div class="field-row">
                 <input type="password" id="kimiApiKey" class="input" placeholder="输入 Kimi API Key">
-                <a href="https://platform.moonshot.cn/" target="_blank" class="field-link">获取</a>
+                <a href="https://platform.moonshot.cn/" target="_blank" rel="noopener noreferrer" class="field-link">获取</a>
               </div>
             </div>
             <div class="field model-select">
@@ -148,7 +155,7 @@
               <label class="field-label">API Key</label>
               <div class="field-row">
                 <input type="password" id="zhipuApiKey" class="input" placeholder="输入智谱清言 API Key">
-                <a href="https://open.bigmodel.cn/" target="_blank" class="field-link">获取</a>
+                <a href="https://open.bigmodel.cn/" target="_blank" rel="noopener noreferrer" class="field-link">获取</a>
               </div>
             </div>
             <div class="field model-select">
@@ -178,7 +185,7 @@
               <label class="field-label">API Key</label>
               <div class="field-row">
                 <input type="password" id="deepseekApiKey" class="input" placeholder="输入 DeepSeek API Key">
-                <a href="https://platform.deepseek.com/" target="_blank" class="field-link">获取</a>
+                <a href="https://platform.deepseek.com/" target="_blank" rel="noopener noreferrer" class="field-link">获取</a>
               </div>
             </div>
             <div class="field model-select">
@@ -200,7 +207,7 @@
       <!-- API 密钥 - 国际 -->
       <section class="section" id="sec-global">
         <div class="section-head">
-          <h2 class="section-title">国际服务</h2>
+          <h2 class="section-title" data-i18n="providerConfig">国际服务</h2>
         </div>
 
         <!-- DeepL -->
@@ -215,7 +222,7 @@
               <label class="field-label">API Key</label>
               <div class="field-row">
                 <input type="password" id="deeplApiKey" class="input" placeholder="输入 DeepL API Key">
-                <a href="https://www.deepl.com/pro-api" target="_blank" class="field-link">获取</a>
+                <a href="https://www.deepl.com/pro-api" target="_blank" rel="noopener noreferrer" class="field-link">获取</a>
               </div>
             </div>
             <div class="field">
@@ -241,7 +248,7 @@
               <label class="field-label">API Key</label>
               <div class="field-row">
                 <input type="password" id="geminiApiKey" class="input" placeholder="输入 Google AI Studio API Key">
-                <a href="https://aistudio.google.com/apikey" target="_blank" class="field-link">获取</a>
+                <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" class="field-link">获取</a>
               </div>
             </div>
             <div class="field model-select">
@@ -271,7 +278,7 @@
               <label class="field-label">API Key</label>
               <div class="field-row">
                 <input type="password" id="openaiApiKey" class="input" placeholder="输入 OpenAI API Key">
-                <a href="https://platform.openai.com/api-keys" target="_blank" class="field-link">获取</a>
+                <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" class="field-link">获取</a>
               </div>
             </div>
             <div class="field model-select">
@@ -301,7 +308,7 @@
               <label class="field-label">API Key</label>
               <div class="field-row">
                 <input type="password" id="claudeApiKey" class="input" placeholder="输入 Anthropic API Key">
-                <a href="https://console.anthropic.com/settings/keys" target="_blank" class="field-link">获取</a>
+                <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer" class="field-link">获取</a>
               </div>
             </div>
             <div class="field model-select">
@@ -331,7 +338,7 @@
               <label class="field-label">API Key</label>
               <div class="field-row">
                 <input type="password" id="openrouterApiKey" class="input" placeholder="输入 OpenRouter API Key">
-                <a href="https://openrouter.ai/keys" target="_blank" class="field-link">获取</a>
+                <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" class="field-link">获取</a>
               </div>
             </div>
             <div class="field model-select">
@@ -353,8 +360,7 @@
       <!-- 自定义服务 -->
       <section class="section" id="custom-service-divider">
         <div class="section-head">
-          <h2 class="section-title">自定义服务</h2>
-          <p class="section-desc">添加兼容 OpenAI 或 Anthropic API 格式的服务</p>
+          <h2 class="section-title" data-i18n="customServices">自定义服务</h2>
         </div>
         <div class="card">
           <button id="addCustomServiceBtn" class="btn-add">
@@ -412,8 +418,7 @@
       <!-- 外观 -->
       <section class="section" id="sec-style">
         <div class="section-head">
-          <h2 class="section-title">外观</h2>
-          <p class="section-desc">自定义译文显示风格</p>
+          <h2 class="section-title" data-i18n="styleSettings">外观</h2>
         </div>
         <div class="card">
           <div class="field-grid">
@@ -459,8 +464,8 @@
       <div class="save-bar-inner">
         <span id="saveStatus" class="save-status"></span>
         <div class="save-actions">
-          <button id="resetBtn" class="btn-ghost">恢复默认</button>
-          <button id="saveBtn" class="btn-primary">保存设置</button>
+          <button id="resetBtn" class="btn-ghost" data-i18n="resetBtn">恢复默认</button>
+          <button id="saveBtn" class="btn-primary" data-i18n="saveBtn">保存设置</button>
         </div>
       </div>
     </footer>

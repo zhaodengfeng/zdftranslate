@@ -5,6 +5,13 @@ function generateId() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // i18n
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n');
+    const msg = chrome.i18n.getMessage(key);
+    if (msg) el.textContent = msg;
+  });
+
   let customServices = [];
 
   const ADD_ICON = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>';
@@ -17,7 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     zhipu: 'assets/providers/zhipu.png',
     aliyun: 'assets/providers/aliyun.png',
     gemini: 'assets/providers/google.png',
-    claude: 'assets/providers/openai.png',
+    claude: 'assets/providers/claude.svg',
     deepl: 'assets/providers/deepl.svg',
     'google-free': 'assets/providers/google.png',
     'microsoft-free': 'assets/providers/microsoft.svg',
