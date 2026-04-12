@@ -53,15 +53,19 @@ document.addEventListener('DOMContentLoaded', async () => {
     translateToggle.addEventListener('click', async () => {
       if (!currentTabId) return;
       const newState = !isTranslated;
+      // Optimistic UI update — respond instantly
+      isTranslated = newState;
+      updateHeroButton();
       try {
-        await chrome.tabs.sendMessage(currentTabId, {
+        chrome.tabs.sendMessage(currentTabId, {
           action: 'toggleTranslation',
           enabled: newState,
         });
-        isTranslated = newState;
-        await setTabStatusInBackground(currentTabId, isTranslated);
-        updateHeroButton();
+        setTabStatusInBackground(currentTabId, isTranslated);
       } catch (e) {
+        // Revert on failure
+        isTranslated = !newState;
+        updateHeroButton();
         showToast(chrome.i18n.getMessage('toastError') || '操作失败');
       }
     });

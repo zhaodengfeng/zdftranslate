@@ -130,8 +130,7 @@ const _t = (key, fallback) => {
       if (config.enabled) {
         startTranslation();
       } else {
-        removeTranslations();
-        syncAndNotifyTranslationStatus(false);
+        restoreOriginal();
         updateFloatingButtonState();
       }
     } else if (request.action === 'updateConfig') {
