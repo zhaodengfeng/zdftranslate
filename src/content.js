@@ -128,9 +128,10 @@ const _t = (key, fallback) => {
     if (request.action === 'toggleTranslation') {
       config.enabled = request.enabled;
       if (config.enabled) {
-        init();
+        startTranslation();
       } else {
         removeTranslations();
+        syncAndNotifyTranslationStatus(false);
       }
     } else if (request.action === 'updateConfig') {
       config = { ...config, ...request.config };
