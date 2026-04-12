@@ -173,6 +173,26 @@ body {
   box-shadow: var(--shadow-elevated);
 }
 
+.provider-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.provider-grid-divider {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg3);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  padding: 8px 0 4px;
+  border-bottom: 1px solid var(--border);
+  margin-top: 4px;
+}
+@media (max-width: 640px) {
+  .provider-grid { grid-template-columns: 1fr; }
+}
+
 .provider-head {
   display: flex;
   align-items: center;
