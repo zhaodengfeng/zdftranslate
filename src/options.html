@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title data-i18n="optionsTitle">ZDFTranslate 设置</title>
+  <title>ZDFTranslate 设置</title>
   <link rel="stylesheet" href="styles/options.css">
   <link rel="stylesheet" href="styles/model-rich-select.css">
 </head>
@@ -27,12 +27,13 @@
       <!-- 翻译服务 -->
       <section class="section" id="sec-free">
         <div class="section-head">
-          <h2 class="section-title" data-i18n="translationService">翻译服务</h2>
+          <h2 class="section-title">翻译服务</h2>
+          <p class="section-desc">选择翻译引擎并配置API密钥</p>
         </div>
 
         <div class="card">
           <div class="field">
-            <label class="field-label" data-i18n="translationService">当前使用服务</label>
+            <label class="field-label">当前使用服务</label>
             <select id="activeService" class="select">
               <optgroup label="Free">
                 <option value="microsoft-free">Microsoft Translator (Free)</option>
@@ -57,7 +58,7 @@
             </select>
           </div>
           <div class="field">
-            <label class="field-label" data-i18n="promptPreset">Prompt 预设</label>
+            <label class="field-label">Prompt 预设</label>
             <select id="promptPreset" class="select">
               <option value="general">🌐 通用翻译</option>
               <option value="news">📰 新闻媒体</option>
@@ -69,23 +70,26 @@
             <span class="field-hint">仅对 AI 服务 (LLM) 生效</span>
           </div>
         </div>
+      </section>
 
-        <!-- 连接测试 -->
+      <!-- 测试连接 -->
+      <section class="section">
         <div class="card test-connection-card">
-          <div class="field">
+          <div class="field" style="margin-bottom:0;">
             <button id="testConnectionBtn" class="btn-test">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-              <span>测试连接</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              测试连接
             </button>
             <span id="testResult" class="test-result"></span>
           </div>
         </div>
       </section>
-      <section class="section" id="sec-providers">
+
+      <!-- API 密钥 - 国内 -->
+      <section class="section" id="sec-cn">
         <div class="section-head">
-          <h2 class="section-title" data-i18n="providerConfig">服务商配置</h2>
+          <h2 class="section-title">国内服务</h2>
         </div>
-        <div class="provider-grid">
 
         <!-- 阿里百炼 -->
         <details class="provider" open>
@@ -212,9 +216,13 @@
             </div>
           </div>
         </details>
+      </section>
 
-        <!-- 国际服务标题 (visual separator inside grid) -->
-        <div class="provider-grid-divider">国际服务</div>
+      <!-- API 密钥 - 国际 -->
+      <section class="section" id="sec-global">
+        <div class="section-head">
+          <h2 class="section-title">国际服务</h2>
+        </div>
 
         <!-- DeepL -->
         <details class="provider" open>
@@ -361,13 +369,13 @@
             </div>
           </div>
         </details>
-        </div><!-- /provider-grid -->
       </section>
 
       <!-- 自定义服务 -->
       <section class="section" id="custom-service-divider">
         <div class="section-head">
-          <h2 class="section-title" data-i18n="customServices">自定义服务</h2>
+          <h2 class="section-title">自定义服务</h2>
+          <p class="section-desc">添加兼容 OpenAI 或 Anthropic API 格式的服务</p>
         </div>
         <div class="card">
           <button id="addCustomServiceBtn" class="btn-add">
@@ -425,41 +433,41 @@
       <!-- 外观 -->
       <section class="section" id="sec-style">
         <div class="section-head">
-          <h2 class="section-title" data-i18n="styleSettings">外观</h2>
+          <h2 class="section-title">外观</h2>
+          <p class="section-desc">自定义译文显示风格</p>
         </div>
         <div class="card">
-          <!-- 预设样式 -->
+          <!-- 预设选择 -->
           <div class="field">
-            <label class="field-label">预设样式</label>
+            <label class="field-label">样式预设</label>
             <div class="style-presets" id="stylePresets">
-              <button type="button" class="style-preset active" data-preset="classic" title="经典虚线分隔">
-                <span class="preset-preview preset-classic">原文<br><span>译文</span></span>
+              <button class="style-preset active" data-preset="classic">
+                <div class="preset-preview preset-classic"><span>原文</span><span>译文</span></div>
                 <span class="preset-name">经典</span>
               </button>
-              <button type="button" class="style-preset" data-preset="subtle" title="柔和淡灰">
-                <span class="preset-preview preset-subtle">原文<br><span>译文</span></span>
-                <span class="preset-name">柔和</span>
+              <button class="style-preset" data-preset="subtle">
+                <div class="preset-preview preset-subtle"><span>原文</span><span>译文</span></div>
+                <span class="preset-name">淡雅</span>
               </button>
-              <button type="button" class="style-preset" data-preset="indigo" title="靛蓝标注">
-                <span class="preset-preview preset-indigo">原文<br><span>译文</span></span>
+              <button class="style-preset" data-preset="indigo">
+                <div class="preset-preview preset-indigo"><span>原文</span><span>译文</span></div>
                 <span class="preset-name">靛蓝</span>
               </button>
-              <button type="button" class="style-preset" data-preset="card" title="卡片背景">
-                <span class="preset-preview preset-card">原文<br><span>译文</span></span>
+              <button class="style-preset" data-preset="card">
+                <div class="preset-preview preset-card"><span>原文</span><span>译文</span></div>
                 <span class="preset-name">卡片</span>
               </button>
-              <button type="button" class="style-preset" data-preset="side" title="左竖线标记">
-                <span class="preset-preview preset-side">原文<br><span>译文</span></span>
-                <span class="preset-name">侧栏</span>
+              <button class="style-preset" data-preset="side">
+                <div class="preset-preview preset-side"><span>原文</span><span>译文</span></div>
+                <span class="preset-name">侧线</span>
               </button>
-              <button type="button" class="style-preset" data-preset="custom" title="自定义样式">
-                <span class="preset-preview preset-custom">Aa</span>
+              <button class="style-preset" data-preset="custom">
+                <div class="preset-preview preset-custom">✎</div>
                 <span class="preset-name">自定义</span>
               </button>
             </div>
           </div>
-
-          <!-- 自定义样式面板 -->
+          <!-- 自定义面板 -->
           <div class="style-custom-panel" id="styleCustomPanel" style="display:none;">
             <div class="field-grid">
               <div class="field">
@@ -467,16 +475,11 @@
                 <input type="color" id="translationColor" class="input-color" value="#111111">
               </div>
               <div class="field">
-                <label class="field-label">背景色</label>
-                <input type="color" id="translationBgColor" class="input-color" value="#ffffff">
-              </div>
-              <div class="field">
                 <label class="field-label">字号</label>
                 <select id="translationSize" class="select">
-                  <option value="0.85em">小 (0.85)</option>
-                  <option value="0.95em" selected>中 (0.95)</option>
-                  <option value="1em">等大 (1.0)</option>
-                  <option value="1.05em">大 (1.05)</option>
+                  <option value="0.85em">小</option>
+                  <option value="0.95em" selected>中</option>
+                  <option value="1em">大</option>
                 </select>
               </div>
               <div class="field">
@@ -485,18 +488,19 @@
                   <option value="1.4">紧凑</option>
                   <option value="1.6" selected>舒适</option>
                   <option value="1.8">宽松</option>
-                  <option value="2.0">极宽</option>
                 </select>
               </div>
               <div class="field">
+                <label class="field-label">背景颜色</label>
+                <input type="color" id="translationBgColor" class="input-color" value="#ffffff">
+              </div>
+              <div class="field">
+                <label class="field-label">背景透明度</label>
+                <input type="range" id="translationBgOpacity" class="input-range" min="0" max="100" value="0">
+              </div>
+              <div class="field">
                 <label class="field-label">字体</label>
-                <select id="translationFont" class="select">
-                  <option value="">跟随页面</option>
-                  <option value="-apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif">系统默认</option>
-                  <option value="'Noto Serif SC', 'Source Han Serif SC', Georgia, serif">宋体/衬线</option>
-                  <option value="'Noto Sans SC', 'Source Han Sans SC', sans-serif">黑体/无衬线</option>
-                  <option value="Georgia, 'Times New Roman', serif">西文衬线</option>
-                </select>
+                <input type="text" id="translationFont" class="input" placeholder="如: 'Noto Serif SC', serif">
               </div>
               <div class="field">
                 <label class="field-label">分隔线</label>
@@ -506,28 +510,23 @@
                   <option value="none">无</option>
                 </select>
               </div>
-            </div>
-            <div class="field" style="margin-top:8px;">
-              <label class="field-label">背景透明度</label>
-              <input type="range" id="translationBgOpacity" min="0" max="100" value="100" class="input-range">
-            </div>
-            <div class="field" style="margin-top:8px;">
-              <label class="field-label">左标记条</label>
-              <select id="translationLeftBar" class="select">
-                <option value="none">无</option>
-                <option value="3px">细 (3px)</option>
-                <option value="4px">中 (4px)</option>
-                <option value="5px">粗 (5px)</option>
-              </select>
+              <div class="field">
+                <label class="field-label">左侧竖线</label>
+                <select id="translationLeftBar" class="select">
+                  <option value="none">无</option>
+                  <option value="2px">细</option>
+                  <option value="3px">中</option>
+                  <option value="4px">粗</option>
+                </select>
+              </div>
             </div>
           </div>
-
           <!-- 实时预览 -->
-          <div class="style-preview" id="stylePreview">
-            <div class="style-preview-label">预览</div>
+          <div class="style-preview">
+            <div class="style-preview-label">预览效果</div>
             <div class="style-preview-content">
-              <p>The quick brown fox jumps over the lazy dog. This is a sample paragraph to demonstrate how the bilingual translation will look.</p>
-              <p class="zdf-translated" id="previewTranslated">敏捷的棕色狐狸跳过了那只懒狗。这是一段示例文本，用来展示双语翻译的最终效果。</p>
+              <p>The quick brown fox jumps over the lazy dog. This is a sample paragraph to demonstrate the translation style.</p>
+              <div class="zdf-translated" id="previewTranslated">敏捷的棕色狐狸跳过了懒狗。这是一段用于展示翻译样式的示例段落。</div>
             </div>
           </div>
         </div>
@@ -547,8 +546,8 @@
       <div class="save-bar-inner">
         <span id="saveStatus" class="save-status"></span>
         <div class="save-actions">
-          <button id="resetBtn" class="btn-ghost" data-i18n="resetBtn">恢复默认</button>
-          <button id="saveBtn" class="btn-primary" data-i18n="saveBtn">保存设置</button>
+          <button id="resetBtn" class="btn-ghost">恢复默认</button>
+          <button id="saveBtn" class="btn-primary">保存设置</button>
         </div>
       </div>
     </footer>
