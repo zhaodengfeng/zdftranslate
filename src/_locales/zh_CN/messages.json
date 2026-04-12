@@ -224,7 +224,7 @@
     "description": "Floating translate button text"
   },
   "floatClear": {
-    "message": "清除",
+    "message": "恢复原文",
     "description": "Floating clear button text"
   },
   "selectionTranslate": {

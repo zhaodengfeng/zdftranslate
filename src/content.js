@@ -132,6 +132,7 @@ const _t = (key, fallback) => {
       } else {
         removeTranslations();
         syncAndNotifyTranslationStatus(false);
+        updateFloatingButtonState();
       }
     } else if (request.action === 'updateConfig') {
       config = { ...config, ...request.config };
@@ -487,8 +488,7 @@ const _t = (key, fallback) => {
       });
     } catch (error) {
       console.error(`[ZDFTranslate] 批次 ${batchIndex} 失败:`, error.message);
-      showInlineErrorToast(error?.message || '批量翻译失败');
-      // 批量失败时回退到单段落翻译
+      // 批量失败时回退到单段落翻译（不弹 toast，translateParagraph 内部会处理）
       elements.forEach(el => {
         el.dataset.zdfTranslated = '';
       });
@@ -1006,6 +1006,7 @@ const _t = (key, fallback) => {
     }
 
     await syncAndNotifyTranslationStatus(true);
+    updateFloatingButtonState();
   }
 
   // 恢复原文

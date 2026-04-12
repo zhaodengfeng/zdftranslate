@@ -64,10 +64,6 @@ body {
   letter-spacing: -.3px;
 }
 
-.header-title-accent {
-  color: var(--accent);
-}
-
 .header-right {
   display: flex;
   align-items: center;

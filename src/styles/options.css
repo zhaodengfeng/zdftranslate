@@ -90,10 +90,6 @@ body {
   letter-spacing: -.3px;
 }
 
-.topbar-title .accent {
-  color: var(--accent);
-}
-
 .topbar-badge {
   font-size: 10px;
   font-weight: 600;
