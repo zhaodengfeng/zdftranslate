@@ -532,6 +532,53 @@ body {
   }
 }
 
+/* ===== Test Connection ===== */
+.test-connection-card {
+  margin-top: 10px;
+}
+.test-connection-card .field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.btn-test {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  color: var(--fg2);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.btn-test:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-ghost);
+}
+.btn-test:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+.btn-test.loading svg {
+  animation: zdf-spin .8s linear infinite;
+}
+@keyframes zdf-spin {
+  to { transform: rotate(360deg); }
+}
+.test-result {
+  font-size: 13px;
+  font-weight: 500;
+  min-height: 20px;
+}
+.test-result.success { color: #16a34a; }
+.test-result.error { color: #dc2626; }
+
 /* ===== Save Bar ===== */
 .save-bar {
   position: fixed;

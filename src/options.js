@@ -642,6 +642,56 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // Test connection button
+  const testBtn = document.getElementById('testConnectionBtn');
+  const testResult = document.getElementById('testResult');
+  if (testBtn) {
+    testBtn.addEventListener('click', async () => {
+      const service = activeServiceEl ? activeServiceEl.value : 'microsoft-free';
+      const serviceLabel = getServiceName(service);
+
+      testBtn.disabled = true;
+      testBtn.classList.add('loading');
+      testResult.className = 'test-result';
+      testResult.textContent = `正在测试 ${serviceLabel}...`;
+
+      // Auto-save first so background picks up latest keys/models
+      document.getElementById('saveBtn').click();
+      await new Promise(r => setTimeout(r, 300));
+
+      try {
+        const response = await new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage({
+            action: 'translate',
+            text: 'Hello, this is a translation test.',
+            targetLang: 'zh-CN',
+            sourceLang: 'en',
+            service,
+          }, (res) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+            } else if (res?.error) {
+              reject(new Error(res.error));
+            } else if (res?.translatedText) {
+              resolve(res.translatedText);
+            } else {
+              reject(new Error('无响应'));
+            }
+          });
+        });
+
+        testResult.className = 'test-result success';
+        testResult.textContent = `✓ ${serviceLabel} 连接正常：${response}`;
+      } catch (err) {
+        testResult.className = 'test-result error';
+        testResult.textContent = `✗ ${serviceLabel} 测试失败：${err.message}`;
+      } finally {
+        testBtn.disabled = false;
+        testBtn.classList.remove('loading');
+      }
+    });
+  }
+
   // Reset button
   document.getElementById('resetBtn').addEventListener('click', async () => {
     if (confirm('确定要恢复默认设置吗？')) {

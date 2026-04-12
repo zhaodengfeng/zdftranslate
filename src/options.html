@@ -69,9 +69,18 @@
             <span class="field-hint">仅对 AI 服务 (LLM) 生效</span>
           </div>
         </div>
-      </section>
 
-      <!-- API 密钥 - 国内 -->
+        <!-- 连接测试 -->
+        <div class="card test-connection-card">
+          <div class="field">
+            <button id="testConnectionBtn" class="btn-test">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <span>测试连接</span>
+            </button>
+            <span id="testResult" class="test-result"></span>
+          </div>
+        </div>
+      </section>
       <section class="section" id="sec-cn">
         <div class="section-head">
           <h2 class="section-title" data-i18n="providerConfig">国内服务</h2>
