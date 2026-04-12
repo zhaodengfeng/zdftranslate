@@ -404,6 +404,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('translationFont') && (document.getElementById('translationFont').value = config.style?.translationFont || '');
   document.getElementById('translationDivider') && (document.getElementById('translationDivider').value = config.style?.translationDivider || 'dashed');
   document.getElementById('translationLeftBar') && (document.getElementById('translationLeftBar').value = config.style?.translationLeftBar || 'none');
+  document.getElementById('translationFontWeight') && (document.getElementById('translationFontWeight').value = config.style?.translationFontWeight || 'normal');
+  document.getElementById('translationUnderline') && (document.getElementById('translationUnderline').value = config.style?.translationUnderline || 'none');
 
   const currentService = config.translationService || 'microsoft-free';
   if (activeServiceEl) {
@@ -583,26 +585,44 @@ document.addEventListener('DOMContentLoaded', async () => {
     classic: {
       translationColor: '#555555', translationBgColor: '#ffffff', translationBgOpacity: 0,
       translationSize: '0.95em', lineSpacing: '1.6', translationFont: '',
+      translationFontWeight: 'normal', translationUnderline: 'none',
       translationDivider: 'dashed', translationLeftBar: 'none',
     },
     subtle: {
       translationColor: '#9ca3af', translationBgColor: '#ffffff', translationBgOpacity: 0,
       translationSize: '0.9em', lineSpacing: '1.5', translationFont: '',
+      translationFontWeight: 'normal', translationUnderline: 'none',
       translationDivider: 'none', translationLeftBar: 'none',
     },
-    indigo: {
-      translationColor: '#4f46e5', translationBgColor: '#eef2ff', translationBgOpacity: 30,
+    bold: {
+      translationColor: '#111827', translationBgColor: '#ffffff', translationBgOpacity: 0,
+      translationSize: '0.95em', lineSpacing: '1.7', translationFont: '',
+      translationFontWeight: 'bold', translationUnderline: 'none',
+      translationDivider: 'none', translationLeftBar: 'none',
+    },
+    underline: {
+      translationColor: '#374151', translationBgColor: '#ffffff', translationBgOpacity: 0,
       translationSize: '0.95em', lineSpacing: '1.6', translationFont: '',
+      translationFontWeight: 'normal', translationUnderline: 'underline',
+      translationDivider: 'none', translationLeftBar: 'none',
+    },
+    highlight: {
+      translationColor: '#1e293b', translationBgColor: '#fef08a', translationBgOpacity: 55,
+      translationSize: '0.95em', lineSpacing: '1.6', translationFont: '',
+      translationFontWeight: 'normal', translationUnderline: 'none',
+      translationDivider: 'none', translationLeftBar: 'none',
+    },
+    paper: {
+      translationColor: '#374151', translationBgColor: '#fefce8', translationBgOpacity: 40,
+      translationSize: '0.95em', lineSpacing: '1.7',
+      translationFont: '"Noto Serif SC", "Source Han Serif SC", Georgia, serif',
+      translationFontWeight: 'normal', translationUnderline: 'none',
       translationDivider: 'solid', translationLeftBar: 'none',
-    },
-    card: {
-      translationColor: '#374151', translationBgColor: '#f3f4f6', translationBgOpacity: 60,
-      translationSize: '0.95em', lineSpacing: '1.6', translationFont: '',
-      translationDivider: 'none', translationLeftBar: 'none',
     },
     side: {
       translationColor: '#4f46e5', translationBgColor: '#ffffff', translationBgOpacity: 0,
       translationSize: '0.95em', lineSpacing: '1.6', translationFont: '',
+      translationFontWeight: 'normal', translationUnderline: 'none',
       translationDivider: 'none', translationLeftBar: '3px',
     },
   };
@@ -621,6 +641,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const fontEl = document.getElementById('translationFont');
     const dividerEl = document.getElementById('translationDivider');
     const leftBarEl = document.getElementById('translationLeftBar');
+    const fontWeightEl = document.getElementById('translationFontWeight');
+    const underlineEl = document.getElementById('translationUnderline');
 
     if (colorEl) colorEl.value = style.translationColor || '#555555';
     if (bgColorEl) bgColorEl.value = style.translationBgColor || '#ffffff';
@@ -630,6 +652,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (fontEl) fontEl.value = style.translationFont || '';
     if (dividerEl) dividerEl.value = style.translationDivider || 'dashed';
     if (leftBarEl) leftBarEl.value = style.translationLeftBar || 'none';
+    if (fontWeightEl) fontWeightEl.value = style.translationFontWeight || 'normal';
+    if (underlineEl) underlineEl.value = style.translationUnderline || 'none';
     updateStylePreview();
   }
 
@@ -643,9 +667,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const font = document.getElementById('translationFont')?.value || '';
     const divider = document.getElementById('translationDivider')?.value || 'dashed';
     const leftBar = document.getElementById('translationLeftBar')?.value || 'none';
+    const fontWeight = document.getElementById('translationFontWeight')?.value || 'normal';
+    const underline = document.getElementById('translationUnderline')?.value || 'none';
 
     let styles = `color:${color};font-size:${size};line-height:${spacing};`;
     if (font) styles += `font-family:${font};`;
+    if (fontWeight === 'bold') styles += 'font-weight:600;';
+    if (underline === 'underline') styles += 'text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(99,102,241,0.45);';
+    else if (underline === 'wavy') styles += 'text-decoration:underline wavy;text-underline-offset:3px;text-decoration-color:rgba(99,102,241,0.45);';
     if (bgOpacity > 0) {
       const r = parseInt(bgColor.slice(1,3),16), g = parseInt(bgColor.slice(3,5),16), b = parseInt(bgColor.slice(5,7),16);
       styles += `background:rgba(${r},${g},${b},${bgOpacity});border-radius:4px;padding:8px 10px;`;
@@ -676,7 +705,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Bind live preview to custom style inputs
-  ['translationColor','translationBgColor','translationBgOpacity','translationSize','lineSpacing','translationFont','translationDivider','translationLeftBar'].forEach(id => {
+  ['translationColor','translationBgColor','translationBgOpacity','translationSize','lineSpacing','translationFont','translationFontWeight','translationUnderline','translationDivider','translationLeftBar'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.addEventListener('input', updateStylePreview);
     if (el) el.addEventListener('change', updateStylePreview);
@@ -758,6 +787,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           translationSize: document.getElementById('translationSize').value,
           lineSpacing: document.getElementById('lineSpacing').value,
           translationFont: document.getElementById('translationFont')?.value || '',
+          translationFontWeight: document.getElementById('translationFontWeight')?.value || 'normal',
+          translationUnderline: document.getElementById('translationUnderline')?.value || 'none',
           translationDivider: document.getElementById('translationDivider')?.value || 'dashed',
           translationLeftBar: document.getElementById('translationLeftBar')?.value || 'none',
         },
@@ -855,6 +886,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           translationColor: '#111111',
           translationSize: '0.95em',
           lineSpacing: '1.6',
+          translationFontWeight: 'normal',
+          translationUnderline: 'none',
         }
       };
 

@@ -39,9 +39,10 @@ const _t = (key, fallback) => {
       translationSize: '0.95em',
       lineSpacing: '1.6',
       translationFont: '',
+      translationFontWeight: 'normal',
+      translationUnderline: 'none',
       translationDivider: 'dashed',
       translationLeftBar: 'none',
-      backgroundHighlight: false,
       preset: 'classic',
     }
   };
@@ -660,6 +661,18 @@ const _t = (key, fallback) => {
     return `border-left:${w} solid #6366f1;padding-left:10px;`;
   }
 
+  function buildFontWeightStyle(style) {
+    if (style.translationFontWeight === 'bold') return 'font-weight:600;';
+    return '';
+  }
+
+  function buildUnderlineStyle(style) {
+    const u = style.translationUnderline || 'none';
+    if (u === 'underline') return 'text-decoration:underline;text-underline-offset:3px;text-decoration-color:rgba(99,102,241,0.45);';
+    if (u === 'wavy') return 'text-decoration:underline wavy;text-underline-offset:3px;text-decoration-color:rgba(99,102,241,0.45);';
+    return '';
+  }
+
   function cleanupExistingTranslation(element) {
     // 移除同一节点内历史翻译容器，避免重试时重复插入
     element.querySelectorAll(':scope > .zdf-translation-container').forEach((node) => node.remove());
@@ -710,6 +723,8 @@ const _t = (key, fallback) => {
       margin-bottom: 0.8em;
       color: ${config.style.translationColor || 'inherit'};
       ${buildBgStyle(config.style)}
+      ${buildFontWeightStyle(config.style)}
+      ${buildUnderlineStyle(config.style)}
       display: block;
       width: 100%;
       max-width: 100%;
@@ -761,6 +776,8 @@ const _t = (key, fallback) => {
       ${buildBgStyle(config.style)}
       ${buildDividerStyle(config.style)}
       ${buildLeftBarStyle(config.style)}
+      ${buildFontWeightStyle(config.style)}
+      ${buildUnderlineStyle(config.style)}
       line-height: ${config.style.lineSpacing};
       transition: opacity 0.3s ease;
       display: block;
