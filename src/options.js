@@ -396,10 +396,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Style settings
-  document.getElementById('translationColor').value = config.style?.translationColor || '#111111';
+  document.getElementById('translationColor').value = config.style?.translationColor || '#555555';
   document.getElementById('translationSize').value = config.style?.translationSize || '0.95em';
   document.getElementById('lineSpacing').value = config.style?.lineSpacing || '1.6';
-  document.getElementById('backgroundHighlight').checked = config.style?.backgroundHighlight || false;
+  document.getElementById('translationBgColor') && (document.getElementById('translationBgColor').value = config.style?.translationBgColor || '#ffffff');
+  document.getElementById('translationBgOpacity') && (document.getElementById('translationBgOpacity').value = config.style?.translationBgOpacity ?? 0);
+  document.getElementById('translationFont') && (document.getElementById('translationFont').value = config.style?.translationFont || '');
+  document.getElementById('translationDivider') && (document.getElementById('translationDivider').value = config.style?.translationDivider || 'dashed');
+  document.getElementById('translationLeftBar') && (document.getElementById('translationLeftBar').value = config.style?.translationLeftBar || 'none');
 
   const currentService = config.translationService || 'microsoft-free';
   if (activeServiceEl) {
@@ -579,27 +583,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     classic: {
       translationColor: '#555555', translationBgColor: '#ffffff', translationBgOpacity: 0,
       translationSize: '0.95em', lineSpacing: '1.6', translationFont: '',
-      translationDivider: 'dashed', translationLeftBar: 'none', backgroundHighlight: false,
+      translationDivider: 'dashed', translationLeftBar: 'none',
     },
     subtle: {
       translationColor: '#9ca3af', translationBgColor: '#ffffff', translationBgOpacity: 0,
       translationSize: '0.9em', lineSpacing: '1.5', translationFont: '',
-      translationDivider: 'none', translationLeftBar: 'none', backgroundHighlight: false,
+      translationDivider: 'none', translationLeftBar: 'none',
     },
     indigo: {
       translationColor: '#4f46e5', translationBgColor: '#eef2ff', translationBgOpacity: 30,
       translationSize: '0.95em', lineSpacing: '1.6', translationFont: '',
-      translationDivider: 'solid', translationLeftBar: 'none', backgroundHighlight: false,
+      translationDivider: 'solid', translationLeftBar: 'none',
     },
     card: {
       translationColor: '#374151', translationBgColor: '#f3f4f6', translationBgOpacity: 60,
       translationSize: '0.95em', lineSpacing: '1.6', translationFont: '',
-      translationDivider: 'none', translationLeftBar: 'none', backgroundHighlight: false,
+      translationDivider: 'none', translationLeftBar: 'none',
     },
     side: {
       translationColor: '#4f46e5', translationBgColor: '#ffffff', translationBgOpacity: 0,
       translationSize: '0.95em', lineSpacing: '1.6', translationFont: '',
-      translationDivider: 'none', translationLeftBar: '3px', backgroundHighlight: false,
+      translationDivider: 'none', translationLeftBar: '3px',
     },
   };
 
@@ -756,7 +760,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           translationFont: document.getElementById('translationFont')?.value || '',
           translationDivider: document.getElementById('translationDivider')?.value || 'dashed',
           translationLeftBar: document.getElementById('translationLeftBar')?.value || 'none',
-          backgroundHighlight: false,
         },
         excludedSites: config.excludedSites || []
       };
@@ -852,7 +855,6 @@ document.addEventListener('DOMContentLoaded', async () => {
           translationColor: '#111111',
           translationSize: '0.95em',
           lineSpacing: '1.6',
-          backgroundHighlight: false
         }
       };
 
