@@ -33,10 +33,16 @@ const _t = (key, fallback) => {
     },
     excludedSites: [],
     style: {
-      translationColor: '#111111',
+      translationColor: '#555555',
+      translationBgColor: '#ffffff',
+      translationBgOpacity: 0,
       translationSize: '0.95em',
       lineSpacing: '1.6',
-      backgroundHighlight: false
+      translationFont: '',
+      translationDivider: 'dashed',
+      translationLeftBar: 'none',
+      backgroundHighlight: false,
+      preset: 'classic',
     }
   };
 
@@ -633,6 +639,27 @@ const _t = (key, fallback) => {
     }
   }
 
+  function buildBgStyle(style) {
+    const opacity = (style.translationBgOpacity || 0) / 100;
+    if (opacity <= 0) return '';
+    const hex = style.translationBgColor || '#ffffff';
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    return `background:rgba(${r},${g},${b},${opacity});border-radius:4px;padding:8px 10px;`;
+  }
+
+  function buildDividerStyle(style) {
+    const d = style.translationDivider || 'dashed';
+    if (d === 'dashed') return 'border-top:1px dashed rgba(120,120,120,0.18);padding-top:10px;margin-top:12px;';
+    if (d === 'solid') return 'border-top:1px solid rgba(120,120,120,0.25);padding-top:10px;margin-top:12px;';
+    return 'margin-top:8px;';
+  }
+
+  function buildLeftBarStyle(style) {
+    const w = style.translationLeftBar || 'none';
+    if (w === 'none') return '';
+    return `border-left:${w} solid #6366f1;padding-left:10px;`;
+  }
+
   function cleanupExistingTranslation(element) {
     // 移除同一节点内历史翻译容器，避免重试时重复插入
     element.querySelectorAll(':scope > .zdf-translation-container').forEach((node) => node.remove());
@@ -673,15 +700,16 @@ const _t = (key, fallback) => {
     translatedDiv.className = 'zdf-translated';
     translatedDiv.textContent = translated;
 
-    // 动态样式：使用系统字体栈，不硬编码颜色以免与暗黑模式冲突
+    // 动态样式
     translatedDiv.style.cssText = `
-      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      ${config.style.translationFont ? `font-family: ${config.style.translationFont};` : 'font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;'}
       font-size: 1.1em;
-      line-height: 1.8;
+      line-height: ${config.style.lineSpacing || '1.8'};
       letter-spacing: 0.02em;
       text-align: justify;
       margin-bottom: 0.8em;
-      color: inherit;
+      color: ${config.style.translationColor || 'inherit'};
+      ${buildBgStyle(config.style)}
       display: block;
       width: 100%;
       max-width: 100%;
@@ -729,9 +757,10 @@ const _t = (key, fallback) => {
     translatedDiv.style.cssText = `
       color: ${config.style.translationColor};
       font-size: ${config.style.translationSize};
-      margin-top: 16px;
-      padding-top: 12px;
-      border-top: 1px dashed rgba(120,120,120,0.18);
+      ${config.style.translationFont ? `font-family: ${config.style.translationFont};` : ''}
+      ${buildBgStyle(config.style)}
+      ${buildDividerStyle(config.style)}
+      ${buildLeftBarStyle(config.style)}
       line-height: ${config.style.lineSpacing};
       transition: opacity 0.3s ease;
       display: block;

@@ -574,6 +574,128 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
+  // ===== Style Presets =====
+  const STYLE_PRESETS = {
+    classic: {
+      translationColor: '#555555', translationBgColor: '#ffffff', translationBgOpacity: 0,
+      translationSize: '0.95em', lineSpacing: '1.6', translationFont: '',
+      translationDivider: 'dashed', translationLeftBar: 'none', backgroundHighlight: false,
+    },
+    subtle: {
+      translationColor: '#9ca3af', translationBgColor: '#ffffff', translationBgOpacity: 0,
+      translationSize: '0.9em', lineSpacing: '1.5', translationFont: '',
+      translationDivider: 'none', translationLeftBar: 'none', backgroundHighlight: false,
+    },
+    indigo: {
+      translationColor: '#4f46e5', translationBgColor: '#eef2ff', translationBgOpacity: 30,
+      translationSize: '0.95em', lineSpacing: '1.6', translationFont: '',
+      translationDivider: 'solid', translationLeftBar: 'none', backgroundHighlight: false,
+    },
+    card: {
+      translationColor: '#374151', translationBgColor: '#f3f4f6', translationBgOpacity: 60,
+      translationSize: '0.95em', lineSpacing: '1.6', translationFont: '',
+      translationDivider: 'none', translationLeftBar: 'none', backgroundHighlight: false,
+    },
+    side: {
+      translationColor: '#4f46e5', translationBgColor: '#ffffff', translationBgOpacity: 0,
+      translationSize: '0.95em', lineSpacing: '1.6', translationFont: '',
+      translationDivider: 'none', translationLeftBar: '3px', backgroundHighlight: false,
+    },
+  };
+
+  const stylePresetsEl = document.getElementById('stylePresets');
+  const styleCustomPanel = document.getElementById('styleCustomPanel');
+  const previewTranslated = document.getElementById('previewTranslated');
+  let activePreset = 'classic';
+
+  function applyStyleValues(style) {
+    const colorEl = document.getElementById('translationColor');
+    const bgColorEl = document.getElementById('translationBgColor');
+    const bgOpacityEl = document.getElementById('translationBgOpacity');
+    const sizeEl = document.getElementById('translationSize');
+    const spacingEl = document.getElementById('lineSpacing');
+    const fontEl = document.getElementById('translationFont');
+    const dividerEl = document.getElementById('translationDivider');
+    const leftBarEl = document.getElementById('translationLeftBar');
+
+    if (colorEl) colorEl.value = style.translationColor || '#555555';
+    if (bgColorEl) bgColorEl.value = style.translationBgColor || '#ffffff';
+    if (bgOpacityEl) bgOpacityEl.value = Math.round((style.translationBgOpacity || 0) * 100 / 100);
+    if (sizeEl) sizeEl.value = style.translationSize || '0.95em';
+    if (spacingEl) spacingEl.value = style.lineSpacing || '1.6';
+    if (fontEl) fontEl.value = style.translationFont || '';
+    if (dividerEl) dividerEl.value = style.translationDivider || 'dashed';
+    if (leftBarEl) leftBarEl.value = style.translationLeftBar || 'none';
+    updateStylePreview();
+  }
+
+  function updateStylePreview() {
+    if (!previewTranslated) return;
+    const color = document.getElementById('translationColor')?.value || '#555555';
+    const bgColor = document.getElementById('translationBgColor')?.value || '#ffffff';
+    const bgOpacity = (parseInt(document.getElementById('translationBgOpacity')?.value || '0', 10)) / 100;
+    const size = document.getElementById('translationSize')?.value || '0.95em';
+    const spacing = document.getElementById('lineSpacing')?.value || '1.6';
+    const font = document.getElementById('translationFont')?.value || '';
+    const divider = document.getElementById('translationDivider')?.value || 'dashed';
+    const leftBar = document.getElementById('translationLeftBar')?.value || 'none';
+
+    let styles = `color:${color};font-size:${size};line-height:${spacing};`;
+    if (font) styles += `font-family:${font};`;
+    if (bgOpacity > 0) {
+      const r = parseInt(bgColor.slice(1,3),16), g = parseInt(bgColor.slice(3,5),16), b = parseInt(bgColor.slice(5,7),16);
+      styles += `background:rgba(${r},${g},${b},${bgOpacity});border-radius:4px;padding:8px 10px;`;
+    }
+    if (divider === 'dashed') styles += 'border-top:1px dashed rgba(120,120,120,0.18);padding-top:10px;margin-top:12px;';
+    else if (divider === 'solid') styles += 'border-top:1px solid rgba(120,120,120,0.25);padding-top:10px;margin-top:12px;';
+    else styles += 'margin-top:8px;';
+    if (leftBar !== 'none') styles += `border-left:${leftBar} solid #6366f1;padding-left:10px;`;
+    previewTranslated.style.cssText = styles;
+  }
+
+  if (stylePresetsEl) {
+    stylePresetsEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('.style-preset');
+      if (!btn) return;
+      const preset = btn.dataset.preset;
+      stylePresetsEl.querySelectorAll('.style-preset').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activePreset = preset;
+
+      if (preset === 'custom') {
+        styleCustomPanel.style.display = '';
+      } else {
+        styleCustomPanel.style.display = 'none';
+        applyStyleValues(STYLE_PRESETS[preset]);
+      }
+    });
+  }
+
+  // Bind live preview to custom style inputs
+  ['translationColor','translationBgColor','translationBgOpacity','translationSize','lineSpacing','translationFont','translationDivider','translationLeftBar'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', updateStylePreview);
+    if (el) el.addEventListener('change', updateStylePreview);
+  });
+
+  // Init preset from saved config
+  const savedStyle = config.style || {};
+  const savedPreset = savedStyle.preset || 'classic';
+  activePreset = savedPreset;
+  const presetBtn = stylePresetsEl?.querySelector(`[data-preset="${savedPreset}"]`);
+  if (presetBtn) {
+    stylePresetsEl?.querySelectorAll('.style-preset').forEach(b => b.classList.remove('active'));
+    presetBtn.classList.add('active');
+  }
+  if (savedPreset === 'custom') {
+    styleCustomPanel.style.display = '';
+    applyStyleValues(savedStyle);
+  } else if (STYLE_PRESETS[savedPreset]) {
+    applyStyleValues(STYLE_PRESETS[savedPreset]);
+  } else {
+    applyStyleValues(savedStyle);
+  }
+
   // Save button
   document.getElementById('saveBtn').addEventListener('click', async () => {
     try {
@@ -625,10 +747,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         selectedModels: selectedModels,
         customServices: validCustomServices,
         style: {
+          preset: activePreset,
           translationColor: document.getElementById('translationColor').value,
+          translationBgColor: document.getElementById('translationBgColor')?.value || '#ffffff',
+          translationBgOpacity: parseInt(document.getElementById('translationBgOpacity')?.value || '0', 10),
           translationSize: document.getElementById('translationSize').value,
           lineSpacing: document.getElementById('lineSpacing').value,
-          backgroundHighlight: document.getElementById('backgroundHighlight').checked
+          translationFont: document.getElementById('translationFont')?.value || '',
+          translationDivider: document.getElementById('translationDivider')?.value || 'dashed',
+          translationLeftBar: document.getElementById('translationLeftBar')?.value || 'none',
+          backgroundHighlight: false,
         },
         excludedSites: config.excludedSites || []
       };
