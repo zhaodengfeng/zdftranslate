@@ -221,21 +221,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const secCn = document.getElementById('sec-cn');
-    const secGlobal = document.getElementById('sec-global');
 
     const freeServices = new Set(['microsoft-free', 'google-free']);
     if (freeServices.has(service)) {
       if (secCn) secCn.style.display = 'none';
-      if (secGlobal) secGlobal.style.display = 'none';
       return;
     }
 
-    const cnServices = new Set(['kimi', 'zhipu', 'aliyun', 'deepseek']);
-    const globalServices = new Set(['deepl', 'gemini', 'openai', 'claude', 'openrouter']);
-
-    if (secCn) secCn.style.display = cnServices.has(service) ? '' : 'none';
-    if (secGlobal) secGlobal.style.display = globalServices.has(service) ? '' : 'none';
     // custom-service-divider is a standalone section, handled by groups['custom'] above
+    if (secCn) secCn.style.display = service === 'custom' ? 'none' : '';
   }
 
   // Model selector mappings (now includes gemini and claude)

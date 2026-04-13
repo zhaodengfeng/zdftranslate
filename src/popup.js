@@ -244,7 +244,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const option = document.createElement('option');
         option.value = service.id;
         option.textContent = service.name;
-        translationService.appendChild(option);
+        const othersGroup = translationService.querySelector('optgroup[label="Others"]');
+        if (othersGroup) {
+          othersGroup.appendChild(option);
+        } else {
+          translationService.appendChild(option);
+        }
       });
   }
   
