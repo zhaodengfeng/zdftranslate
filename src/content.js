@@ -1573,6 +1573,10 @@ const _t = (key, fallback) => {
   // 选中文本后的快捷翻译按钮（替代右键菜单路径）
   let selectionQuickBtn = null;
   let selectionQuickHideTimer = null;
+  let lastMousePageX = 0;
+  let lastMousePageY = 0;
+  let lastMouseUpAt = 0;
+  let isMouseSelecting = false;
 
   function ensureSelectionQuickButton() {
     if (selectionQuickBtn && document.body.contains(selectionQuickBtn)) return selectionQuickBtn;
@@ -1656,8 +1660,15 @@ const _t = (key, fallback) => {
     const btnW = 34;
     const btnH = 34;
 
-    let left = window.scrollX + rect.right + 8;
-    let top = window.scrollY + rect.bottom + 8;
+    const useMouse = lastMouseUpAt && (Date.now() - lastMouseUpAt < 500);
+    let left, top;
+    if (useMouse) {
+      left = lastMousePageX + 8;
+      top = lastMousePageY + 8;
+    } else {
+      left = window.scrollX + rect.right + 8;
+      top = window.scrollY + rect.bottom + 8;
+    }
 
     const maxLeft = window.scrollX + window.innerWidth - btnW - 8;
     const maxTop = window.scrollY + window.innerHeight - btnH - 8;
@@ -1683,16 +1694,28 @@ const _t = (key, fallback) => {
 
   document.addEventListener('selectionchange', throttle(() => {
     const text = (window.getSelection()?.toString() || '').trim();
-    if (text) {
+    if (text && !isMouseSelecting) {
       showSelectionQuickButtonNearSelection();
-    } else {
+    } else if (!text) {
       scheduleHideSelectionQuickButton(60);
     }
   }, 80));
 
   document.addEventListener('mousedown', (e) => {
     if (selectionQuickBtn && selectionQuickBtn.contains(e.target)) return;
+    isMouseSelecting = true;
     scheduleHideSelectionQuickButton(60);
+  });
+
+  document.addEventListener('mouseup', (e) => {
+    isMouseSelecting = false;
+    lastMousePageX = e.pageX;
+    lastMousePageY = e.pageY;
+    lastMouseUpAt = Date.now();
+    const text = (window.getSelection()?.toString() || '').trim();
+    if (text) {
+      showSelectionQuickButtonNearSelection();
+    }
   });
 
   window.addEventListener('scroll', () => hideSelectionQuickButton(), { passive: true });
