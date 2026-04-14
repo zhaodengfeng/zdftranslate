@@ -295,61 +295,81 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Default model lists (fallback)
   const DEFAULT_MODELS = {
     kimi: [
-      { id: 'moonshot-v1-8k', name: 'Moonshot v1 (8K)' },
-      { id: 'moonshot-v1-32k', name: 'Moonshot v1 (32K)' },
-      { id: 'moonshot-v1-128k', name: 'Moonshot v1 (128K)' }
+      { id: 'kimi-k2.5', name: 'Kimi K2.5' },
+      { id: 'kimi-k2', name: 'Kimi K2' },
+      { id: 'kimi-k2-thinking', name: 'Kimi K2 Thinking' }
     ],
     zhipu: [
-      { id: 'glm-4-flash', name: 'GLM-4 Flash (免费)' },
-      { id: 'glm-4', name: 'GLM-4' },
-      { id: 'glm-4-plus', name: 'GLM-4 Plus' },
-      { id: 'glm-4-air', name: 'GLM-4 Air' },
-      { id: 'glm-4v', name: 'GLM-4V' },
-      { id: 'glm-4.5', name: 'GLM-4.5' },
-      { id: 'glm-4.6', name: 'GLM-4.6' },
-      { id: 'glm-4.7', name: 'GLM-4.7' }
+      { id: 'glm-5.1', name: 'GLM 5.1' },
+      { id: 'glm-5', name: 'GLM 5' },
+      { id: 'glm-5-turbo', name: 'GLM 5 Turbo' },
+      { id: 'glm-4.7', name: 'GLM 4.7' },
+      { id: 'glm-4.7-flash', name: 'GLM 4.7 Flash' }
     ],
     aliyun: [
-      { id: 'qwen-turbo', name: '通义千问 Turbo' },
-      { id: 'qwen-plus', name: '通义千问 Plus' },
-      { id: 'qwen-max', name: '通义千问 Max' },
-      { id: 'qwen-max-latest', name: '通义千问 Max (最新)' },
-      { id: 'qwen-coder-plus', name: '通义千问 Coder Plus' },
-      { id: 'qwen-long', name: '通义千问 Long' }
+      { id: 'qwen-mt-turbo', name: 'qwen-mt-turbo' },
+      { id: 'qwen-mt-plus', name: 'qwen-mt-plus' },
+      { id: 'qwen-mt-flash', name: 'qwen-mt-flash' },
+      { id: 'qwen3-max', name: 'qwen3-max' },
+      { id: 'qwen3.6-plus', name: 'qwen3.6-plus' },
+      { id: 'qwen3.5-plus', name: 'qwen3.5-plus' },
+      { id: 'qwen3.5-flash', name: 'qwen3.5-flash' },
+      { id: 'qwen3-coder-plus', name: 'qwen3-coder-plus' },
+      { id: 'qwen3-coder-flash', name: 'qwen3-coder-flash' },
+      { id: 'qwen-long', name: 'qwen-long' },
+      { id: 'qwen-plus', name: 'qwen-plus' },
+      { id: 'qwen-turbo', name: 'qwen-turbo' }
     ],
     deepseek: [
-      { id: 'deepseek-chat', name: 'DeepSeek Chat' },
-      { id: 'deepseek-coder', name: 'DeepSeek Coder' },
-      { id: 'deepseek-reasoner', name: 'DeepSeek Reasoner' }
+      { id: 'deepseek-chat', name: 'deepseek-chat' },
+      { id: 'deepseek-reasoner', name: 'deepseek-reasoner' }
     ],
     openai: [
-      { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
-      { id: 'gpt-4', name: 'GPT-4' },
-      { id: 'gpt-4-turbo', name: 'GPT-4 Turbo' },
+      { id: 'gpt-5.4', name: 'GPT-5.4' },
+      { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro' },
+      { id: 'gpt-5.4-mini', name: 'GPT-5.4 Mini' },
+      { id: 'gpt-5.4-nano', name: 'GPT-5.4 Nano' },
+      { id: 'gpt-5.3-chat', name: 'GPT-5.3 Chat' },
+      { id: 'gpt-oss-120b', name: 'GPT-OSS 120B' },
       { id: 'gpt-4o', name: 'GPT-4o' },
       { id: 'gpt-4o-mini', name: 'GPT-4o Mini' }
     ],
     openrouter: [
-      { id: 'openai/gpt-4o', name: 'GPT-4o (OpenAI)' },
-      { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini (OpenAI)' },
-      { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet' },
-      { id: 'anthropic/claude-3-opus', name: 'Claude 3 Opus' },
-      { id: 'google/gemini-pro', name: 'Gemini Pro' },
-      { id: 'meta-llama/llama-3-70b-instruct', name: 'Llama 3 70B' },
-      { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat' }
+      { id: 'openai/gpt-5.4', name: 'GPT-5.4' },
+      { id: 'openai/gpt-5.4-pro', name: 'GPT-5.4 Pro' },
+      { id: 'openai/gpt-5.4-mini', name: 'GPT-5.4 Mini' },
+      { id: 'openai/gpt-oss-120b', name: 'GPT-OSS 120B' },
+      { id: 'openai/gpt-oss-120b:free', name: 'GPT-OSS 120B (free)' },
+      { id: 'anthropic/claude-opus-4-6', name: 'Claude Opus 4.6' },
+      { id: 'anthropic/claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
+      { id: 'google/gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro' },
+      { id: 'google/gemini-3-flash-preview', name: 'Gemini 3 Flash' },
+      { id: 'google/gemini-3.1-flash-lite-preview', name: 'Gemini 3.1 Flash Lite' },
+      { id: 'google/gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+      { id: 'deepseek/deepseek-v3.2', name: 'DeepSeek V3.2' },
+      { id: 'deepseek/deepseek-r1', name: 'DeepSeek R1' },
+      { id: 'deepseek/deepseek-r1:free', name: 'DeepSeek R1 (free)' },
+      { id: 'moonshotai/kimi-k2.5', name: 'Kimi K2.5' },
+      { id: 'qwen/qwen3.6-plus', name: 'Qwen3.6 Plus' },
+      { id: 'qwen/qwen3.5-plus', name: 'Qwen3.5 Plus' }
     ],
     gemini: [
-      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash' },
-      { id: 'gemini-2.0-flash-lite', name: 'Gemini 2.0 Flash Lite' },
-      { id: 'gemini-1.5-pro', name: 'Gemini 1.5 Pro' },
-      { id: 'gemini-1.5-flash', name: 'Gemini 1.5 Flash' }
+      { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro' },
+      { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash' },
+      { id: 'gemini-3.1-flash-lite-preview', name: 'Gemini 3.1 Flash Lite' },
+      { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
+      { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+      { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite' }
     ],
     claude: [
-      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
-      { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
-      { id: 'claude-haiku-4-20250514', name: 'Claude Haiku 4' },
-      { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
-      { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku' }
+      { id: 'claude-opus-4-6', name: 'Claude Opus 4.6' },
+      { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
+      { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5' },
+      { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5' },
+      { id: 'claude-opus-4-5', name: 'Claude Opus 4.5' },
+      { id: 'claude-opus-4-1', name: 'Claude Opus 4.1' },
+      { id: 'claude-sonnet-4', name: 'Claude Sonnet 4' },
+      { id: 'claude-opus-4', name: 'Claude Opus 4' }
     ]
   };
 
@@ -860,14 +880,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         promptPreset: 'general',
         deeplPlan: 'free',
         selectedModels: {
-          kimi: 'moonshot-v1-8k',
-          zhipu: 'glm-4-flash',
-          aliyun: 'qwen-turbo',
+          kimi: 'kimi-k2.5',
+          zhipu: 'glm-5.1',
+          aliyun: 'qwen-mt-turbo',
           deepseek: 'deepseek-chat',
-          openai: 'gpt-3.5-turbo',
-          openrouter: 'openai/gpt-4o-mini',
-          gemini: 'gemini-2.0-flash',
-          claude: 'claude-sonnet-4-20250514'
+          openai: 'gpt-5.4',
+          openrouter: 'openai/gpt-5.4',
+          gemini: 'gemini-3.1-pro-preview',
+          claude: 'claude-opus-4-6'
         },
         apiKeys: {
           kimi: '', zhipu: '', aliyun: '', deepseek: '',
@@ -1200,13 +1220,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       .sort((a, b) => a.id.localeCompare(b.id));
   }
 
+  function isTranslationSuitableModel(id) {
+    if (!id) return false;
+    const lower = String(id).toLowerCase();
+    const exclude = [
+      'embed', 'embedding', 'bge-', 'gte-',
+      'tts', 'whisper', 'audio', 'speech',
+      'dall-e', 'imagen', 'veo', 'lyria', 'cogview', 'cogvideox',
+      'moderation', 'aqa', 'robotics',
+      'codegeex',
+      '-image-', 'flash-image', 'image-', 'pro-image',
+      'native-audio', 'preview-tts', 'flash-live',
+      'computer-use', 'deep-research',
+    ];
+    return !exclude.some(k => lower.includes(k));
+  }
+
   async function fetchOpenAIModels(apiKey) {
     try {
       const data = await fetchJsonWithTimeout('https://api.openai.com/v1/models', {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
       return data.data
-        .filter(m => m.id.includes('gpt'))
+        .filter(m => m.id.includes('gpt') && isTranslationSuitableModel(m.id))
         .map(m => ({ id: m.id, name: m.id }))
         .sort((a, b) => a.id.localeCompare(b.id));
     } catch (error) {
@@ -1221,6 +1257,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
       return data.data
+        .filter(m => isTranslationSuitableModel(m.id))
         .map(m => ({ id: m.id, name: m.name || m.id }))
         .sort((a, b) => a.id.localeCompare(b.id));
     } catch (error) {
@@ -1239,7 +1276,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       });
       if (!data.data || !Array.isArray(data.data)) return [];
-      return data.data.map(m => ({ id: m.id, name: m.id || m.name }));
+      return data.data
+        .filter(m => isTranslationSuitableModel(m.id))
+        .map(m => ({ id: m.id, name: m.id || m.name }));
     } catch (error) {
       console.error('Kimi API 错误:', error);
       return [];
@@ -1251,7 +1290,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const data = await fetchJsonWithTimeout('https://api.deepseek.com/models', {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
-      return data.data.map(m => ({ id: m.id, name: m.id }));
+      return data.data
+        .filter(m => isTranslationSuitableModel(m.id))
+        .map(m => ({ id: m.id, name: m.id }));
     } catch (error) {
       console.error('DeepSeek API 错误:', error);
       return [];
@@ -1264,7 +1305,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
       return data.data
-        .filter(m => m.id.startsWith('qwen') || m.id.startsWith('deepseek'))
+        .filter(m => (m.id.startsWith('qwen') || m.id.startsWith('deepseek')) && isTranslationSuitableModel(m.id))
         .map(m => ({ id: m.id, name: m.id }));
     } catch (error) {
       console.error('阿里云百炼 API 错误:', error);
@@ -1277,7 +1318,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const data = await fetchJsonWithTimeout('https://open.bigmodel.cn/api/paas/v4/models', {
         headers: { 'Authorization': `Bearer ${apiKey}` }
       });
-      return (data.data || []).map(m => ({ id: m.id, name: m.id }));
+      return (data.data || [])
+        .filter(m => isTranslationSuitableModel(m.id))
+        .map(m => ({ id: m.id, name: m.id }));
     } catch (error) {
       console.error('智谱清言 API 错误:', error);
       return [];
@@ -1290,7 +1333,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`
       );
       return (data.models || [])
-        .filter(m => m.name && m.supportedGenerationMethods?.includes('generateContent'))
+        .filter(m => m.name && m.supportedGenerationMethods?.includes('generateContent') && isTranslationSuitableModel(m.name))
         .map(m => {
           const id = m.name.replace('models/', '');
           return { id, name: m.displayName || id };

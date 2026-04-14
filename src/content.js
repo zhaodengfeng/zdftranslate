@@ -1549,7 +1549,24 @@ const _t = (key, fallback) => {
       if (hasNestedBlocks(block)) continue; // 避免容器 div 吞并相邻段落
       seen.add(block);
 
-      const text = (block.innerText || '').trim();
+      // 精确提取该 block 中与选区相交的文本，而不是取整个 block.innerText
+      const blockContentsRange = document.createRange();
+      blockContentsRange.selectNodeContents(block);
+
+      const blockRange = document.createRange();
+      if (range.compareBoundaryPoints(Range.START_TO_START, blockContentsRange) <= 0) {
+        blockRange.setStart(blockContentsRange.startContainer, blockContentsRange.startOffset);
+      } else {
+        blockRange.setStart(range.startContainer, range.startOffset);
+      }
+
+      if (range.compareBoundaryPoints(Range.END_TO_END, blockContentsRange) >= 0) {
+        blockRange.setEnd(blockContentsRange.endContainer, blockContentsRange.endOffset);
+      } else {
+        blockRange.setEnd(range.endContainer, range.endOffset);
+      }
+
+      const text = blockRange.toString().trim();
       if (!text) continue;
 
       // 段内单换行合并为空格；块级元素之间保持独立 segment
