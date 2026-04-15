@@ -6,8 +6,8 @@
 (function initProviders(global) {
   const DEFAULT_MODELS = {
     openai: 'gpt-4o-mini',
-    claude: 'claude-sonnet-4-20250514',
-    gemini: 'gemini-2.0-flash',
+    claude: 'claude-sonnet-4-6',
+    gemini: 'gemini-3.1-flash-lite-preview',
     kimi: 'moonshot-v1-8k',
     zhipu: 'glm-4-flash',
     aliyun: 'qwen-turbo',
@@ -167,8 +167,8 @@ const {
 
 const DEFAULT_MODELS = providerDefaultModels || {
   openai: 'gpt-4o-mini',
-  claude: 'claude-sonnet-4-20250514',
-  gemini: 'gemini-2.0-flash',
+  claude: 'claude-sonnet-4-6',
+  gemini: 'gemini-3.1-flash-lite-preview',
   kimi: 'moonshot-v1-8k',
   zhipu: 'glm-4-flash',
   aliyun: 'qwen-turbo',
@@ -313,16 +313,30 @@ self.addEventListener('error', (event) => {
 
 const lastRequestTimes = new Map();
 
-async function fetchWithRetry(url, options, serviceName, maxRetries = 2) {
-  const now = Date.now();
-  const minInterval = MIN_REQUEST_INTERVAL_BY_SERVICE[serviceName] || MIN_REQUEST_INTERVAL_BY_SERVICE.default;
+// HTTP status codes for which retry is pointless (client errors)
+const NO_RETRY_STATUS = new Set([400, 401, 403, 404, 422]);
 
+function sanitizeErrorMessage(msg) {
+  if (!msg) return '';
+  let s = String(msg);
+  // Redact anything that looks like an API key / long token
+  s = s.replace(/[A-Za-z0-9_-]{20,}/g, '***');
+  if (s.length > 300) s = s.slice(0, 300) + '...';
+  return s;
+}
+
+async function applyRateLimit(serviceName) {
+  const minInterval = MIN_REQUEST_INTERVAL_BY_SERVICE[serviceName] || MIN_REQUEST_INTERVAL_BY_SERVICE.default;
   const lastTime = lastRequestTimes.get(serviceName) || 0;
-  const waitTime = minInterval - (now - lastTime);
+  const waitTime = minInterval - (Date.now() - lastTime);
   if (waitTime > 0) {
     await sleep(waitTime);
   }
   lastRequestTimes.set(serviceName, Date.now());
+}
+
+async function fetchWithRetry(url, options, serviceName, maxRetries = 2) {
+  await applyRateLimit(serviceName);
 
   const timeoutMs = REQUEST_TIMEOUT_BY_SERVICE[serviceName] || REQUEST_TIMEOUT_BY_SERVICE.default;
 
@@ -370,7 +384,12 @@ async function fetchWithRetry(url, options, serviceName, maxRetries = 2) {
           } catch (e) {
             errorDetail = await response.text().catch(() => '无法读取错误详情');
           }
-          throw new Error(`${serviceName} API 错误 ${response.status}: ${errorDetail.slice(0, 200)}`);
+          const safeDetail = sanitizeErrorMessage(errorDetail);
+          const err = new Error(`${serviceName} API 错误 ${response.status}: ${safeDetail.slice(0, 200)}`);
+          if (NO_RETRY_STATUS.has(response.status)) {
+            err.noRetry = true;
+          }
+          throw err;
         }
 
         return response;
@@ -379,6 +398,11 @@ async function fetchWithRetry(url, options, serviceName, maxRetries = 2) {
 
         if (error.name === 'AbortError') {
           throw new Error(`${serviceName} 请求超时`);
+        }
+
+        // Do not retry 4xx client errors
+        if (error && error.noRetry) {
+          throw error;
         }
 
         if (attempt < maxRetries - 1) {
@@ -419,11 +443,11 @@ async function fetchRemoteModelsForService(service, apiKey) {
     },
     claude: async () => {
       return [
+        { id: 'claude-opus-4-6', name: 'Claude Opus 4.6' },
+        { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
+        { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5' },
         { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4' },
         { id: 'claude-opus-4-20250514', name: 'Claude Opus 4' },
-        { id: 'claude-haiku-4-20250514', name: 'Claude Haiku 4' },
-        { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
-        { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku' },
       ];
     },
     gemini: async () => {
@@ -586,14 +610,25 @@ class LRUCache extends Map {
 
 const TRANSLATION_CACHE = new LRUCache();
 
-function buildTranslationCacheKey(request) {
+// In-flight request dedupe: same cacheKey shares a single Promise
+const TRANSLATION_INFLIGHT = new Map();
+
+async function buildTranslationCacheKey(request) {
   const { text, targetLang, sourceLang, service } = request;
   const model = request.model || '';
   const promptVersion = request.promptVersion || PROMPT_VERSION;
   const articleTitle = request.articleTitle || '';
   const articleSummary = request.articleSummary || '';
   const awareTag = request.enableAIContentAware ? 'aware:1' : 'aware:0';
-  return `${service || 'microsoft-free'}|${model}|${sourceLang || 'auto'}|${targetLang || 'zh-CN'}|${promptVersion}|${awareTag}|${articleTitle}|${articleSummary}|${text}`;
+  const raw = `${service || 'microsoft-free'}|${model}|${sourceLang || 'auto'}|${targetLang || 'zh-CN'}|${promptVersion}|${awareTag}|${articleTitle}|${articleSummary}|${text}`;
+  try {
+    const buf = new TextEncoder().encode(raw);
+    const hashBuf = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (_) {
+    // Fallback: length + simple hash (extremely unlikely path)
+    return 'fallback:' + raw.length + ':' + raw.slice(0, 40);
+  }
 }
 
 function setTranslationCache(key, value) {
@@ -615,8 +650,8 @@ function getDefaultConfig() {
     deeplPlan: 'free',
     selectedModels: { ...(self.ZDFProviders?.DEFAULT_MODELS || {
       openai: 'gpt-4o-mini',
-      claude: 'claude-sonnet-4-20250514',
-      gemini: 'gemini-2.0-flash',
+      claude: 'claude-sonnet-4-6',
+      gemini: 'gemini-3.1-flash-lite-preview',
       kimi: 'moonshot-v1-8k',
       zhipu: 'glm-4-flash',
       aliyun: 'qwen-turbo',
@@ -636,30 +671,96 @@ function getDefaultConfig() {
 }
 
 const API_KEYS_STORAGE_KEY = 'zdfEncryptedApiKeys';
-const ENCRYPTION_KEY_STORAGE_KEY = 'zdfEncryptionKey';
+const ENCRYPTION_KEY_STORAGE_KEY = 'zdfEncryptionKey'; // legacy raw key (migrated away)
+const ENCRYPTION_SALT_STORAGE_KEY = 'zdfEncryptionSalt';
+const ENCRYPTION_INSTALL_ID_KEY = 'zdfInstallId';
 
-async function getOrCreateEncryptionKey() {
+// Session-scoped in-memory cached wrapping key — cleared when service worker restarts.
+let sessionDerivedKey = null;
+
+async function getOrCreateInstallId() {
+  const result = await chrome.storage.local.get([ENCRYPTION_INSTALL_ID_KEY]);
+  if (result[ENCRYPTION_INSTALL_ID_KEY]) return result[ENCRYPTION_INSTALL_ID_KEY];
+  const id = crypto.getRandomValues(new Uint8Array(16));
+  const hex = Array.from(id).map(b => b.toString(16).padStart(2, '0')).join('');
+  await chrome.storage.local.set({ [ENCRYPTION_INSTALL_ID_KEY]: hex });
+  return hex;
+}
+
+async function getOrCreateSalt() {
+  const result = await chrome.storage.local.get([ENCRYPTION_SALT_STORAGE_KEY]);
+  if (result[ENCRYPTION_SALT_STORAGE_KEY]) {
+    return new Uint8Array(result[ENCRYPTION_SALT_STORAGE_KEY]);
+  }
+  const salt = crypto.getRandomValues(new Uint8Array(32));
+  await chrome.storage.local.set({ [ENCRYPTION_SALT_STORAGE_KEY]: Array.from(salt) });
+  return salt;
+}
+
+// Derive an AES-GCM wrapping key via PBKDF2 from (installId + runtime.id + legacy seed).
+// The legacy raw key, if present, is included as additional material during migration,
+// then deleted.
+async function deriveWrappingKey(legacySeedBytes) {
+  const installId = await getOrCreateInstallId();
+  const salt = await getOrCreateSalt();
+  const runtimeId = (typeof chrome !== 'undefined' && chrome.runtime?.id) || 'zdf';
+  const encoder = new TextEncoder();
+  const seedText = `${installId}|${runtimeId}`;
+  const seedBytes = encoder.encode(seedText);
+  // Combine legacy seed (if any) + seedText
+  const combined = new Uint8Array(seedBytes.length + (legacySeedBytes ? legacySeedBytes.length : 0));
+  combined.set(seedBytes, 0);
+  if (legacySeedBytes) combined.set(legacySeedBytes, seedBytes.length);
+
+  const baseKey = await crypto.subtle.importKey(
+    'raw', combined, { name: 'PBKDF2' }, false, ['deriveKey']
+  );
+  return await crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt, iterations: 100000, hash: 'SHA-256' },
+    baseKey,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+// Returns a CryptoKey ready for AES-GCM encrypt/decrypt.
+async function getWrappingKey() {
+  if (sessionDerivedKey) return sessionDerivedKey;
+  sessionDerivedKey = await deriveWrappingKey(null);
+  return sessionDerivedKey;
+}
+
+// Legacy helper kept for migration-only paths (returns raw bytes if a legacy key exists).
+async function getLegacyRawKeyIfAny() {
   const result = await chrome.storage.local.get([ENCRYPTION_KEY_STORAGE_KEY]);
   if (result[ENCRYPTION_KEY_STORAGE_KEY]) {
     return new Uint8Array(result[ENCRYPTION_KEY_STORAGE_KEY]);
   }
-  const key = crypto.getRandomValues(new Uint8Array(32));
-  await chrome.storage.local.set({ [ENCRYPTION_KEY_STORAGE_KEY]: Array.from(key) });
-  return key;
+  return null;
+}
+
+// Accepts either a raw Uint8Array (legacy) or a CryptoKey. Returns a CryptoKey usable for AES-GCM.
+async function toCryptoKey(keyLike, usage) {
+  if (keyLike && typeof keyLike === 'object' && keyLike.type === 'secret' && keyLike.algorithm?.name === 'AES-GCM') {
+    return keyLike;
+  }
+  // Assume raw bytes
+  return crypto.subtle.importKey('raw', keyLike, { name: 'AES-GCM' }, false, [usage]);
 }
 
 async function encryptApiKeys(apiKeys, key) {
   const encoder = new TextEncoder();
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const data = encoder.encode(JSON.stringify(apiKeys || {}));
-  const cryptoKey = await crypto.subtle.importKey('raw', key, { name: 'AES-GCM' }, false, ['encrypt']);
+  const cryptoKey = await toCryptoKey(key, 'encrypt');
   const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoKey, data);
   return { iv: Array.from(iv), data: Array.from(new Uint8Array(encrypted)) };
 }
 
 async function decryptApiKeys(encryptedObj, key) {
   if (!encryptedObj || !encryptedObj.iv || !encryptedObj.data) return {};
-  const cryptoKey = await crypto.subtle.importKey('raw', key, { name: 'AES-GCM' }, false, ['decrypt']);
+  const cryptoKey = await toCryptoKey(key, 'decrypt');
   const iv = new Uint8Array(encryptedObj.iv);
   const data = new Uint8Array(encryptedObj.data);
   const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKey, data);
@@ -684,14 +785,37 @@ async function loadMergedConfigFromStorage() {
   const config = syncResult.zdfConfig || {};
   let apiKeys = {};
   let migrated = false;
+  let legacyKeyPresent = !!localResult[ENCRYPTION_KEY_STORAGE_KEY];
 
-  if (localResult[API_KEYS_STORAGE_KEY] && localResult[ENCRYPTION_KEY_STORAGE_KEY]) {
+  if (localResult[API_KEYS_STORAGE_KEY]) {
+    // Try modern wrapping key first
     try {
-      const key = new Uint8Array(localResult[ENCRYPTION_KEY_STORAGE_KEY]);
-      apiKeys = await decryptApiKeys(localResult[API_KEYS_STORAGE_KEY], key);
+      const wrappingKey = await getWrappingKey();
+      apiKeys = await decryptApiKeys(localResult[API_KEYS_STORAGE_KEY], wrappingKey);
     } catch (e) {
-      console.warn('[ZDFTranslate] decrypt api keys failed:', e);
-      apiKeys = {};
+      // Fallback: legacy raw key
+      if (legacyKeyPresent) {
+        try {
+          const legacyKey = new Uint8Array(localResult[ENCRYPTION_KEY_STORAGE_KEY]);
+          apiKeys = await decryptApiKeys(localResult[API_KEYS_STORAGE_KEY], legacyKey);
+          // Re-encrypt under the modern wrapping key, then remove the raw key.
+          try {
+            const wrappingKey = await getWrappingKey();
+            const encrypted = await encryptApiKeys(apiKeys, wrappingKey);
+            await chrome.storage.local.set({ [API_KEYS_STORAGE_KEY]: encrypted });
+            await chrome.storage.local.remove([ENCRYPTION_KEY_STORAGE_KEY]);
+            legacyKeyPresent = false;
+          } catch (e2) {
+            console.warn('[ZDFTranslate] migrate to wrapping key failed:', sanitizeErrorMessage(e2?.message));
+          }
+        } catch (e3) {
+          console.warn('[ZDFTranslate] decrypt legacy api keys failed:', sanitizeErrorMessage(e3?.message));
+          apiKeys = {};
+        }
+      } else {
+        console.warn('[ZDFTranslate] decrypt api keys failed:', sanitizeErrorMessage(e?.message));
+        apiKeys = {};
+      }
     }
   }
 
@@ -699,12 +823,12 @@ async function loadMergedConfigFromStorage() {
     if (config.apiKeys && Object.keys(config.apiKeys).length > 0) {
       apiKeys = config.apiKeys;
       try {
-        const key = await getOrCreateEncryptionKey();
-        const encrypted = await encryptApiKeys(apiKeys, key);
+        const wrappingKey = await getWrappingKey();
+        const encrypted = await encryptApiKeys(apiKeys, wrappingKey);
         await chrome.storage.local.set({ [API_KEYS_STORAGE_KEY]: encrypted });
         migrated = true;
       } catch (e) {
-        console.warn('[ZDFTranslate] encrypt migrate api keys failed:', e);
+        console.warn('[ZDFTranslate] encrypt migrate api keys failed:', sanitizeErrorMessage(e?.message));
       }
     }
   }
@@ -714,8 +838,13 @@ async function loadMergedConfigFromStorage() {
     try {
       await chrome.storage.sync.set({ zdfConfig: config });
     } catch (e) {
-      console.warn('[ZDFTranslate] clear sync api keys failed:', e);
+      console.warn('[ZDFTranslate] clear sync api keys failed:', sanitizeErrorMessage(e?.message));
     }
+  }
+
+  // Best-effort: ensure legacy raw key is removed if no longer referenced
+  if (legacyKeyPresent && apiKeys && Object.keys(apiKeys).length > 0) {
+    try { await chrome.storage.local.remove([ENCRYPTION_KEY_STORAGE_KEY]); } catch (_) {}
   }
 
   return { ...config, apiKeys };
@@ -725,8 +854,8 @@ async function saveMergedConfig(config) {
   const { apiKeys, ...syncConfig } = config;
   syncConfig._version = (syncConfig._version || 0) + 1;
   syncConfig._updatedAt = Date.now();
-  const key = await getOrCreateEncryptionKey();
-  const encrypted = await encryptApiKeys(apiKeys, key);
+  const wrappingKey = await getWrappingKey();
+  const encrypted = await encryptApiKeys(apiKeys, wrappingKey);
   await chrome.storage.sync.set({ zdfConfig: syncConfig });
   await chrome.storage.local.set({ [API_KEYS_STORAGE_KEY]: encrypted });
   cachedMergedConfig = { ...syncConfig, apiKeys };
@@ -1063,12 +1192,25 @@ const TRANSLATION_HANDLER_MAP = {
 // ========================================
 // 7. Translation dispatch
 // ========================================
-function enqueueTranslationRequest(request) {
-  const cacheKey = buildTranslationCacheKey(request);
+async function enqueueTranslationRequest(request) {
+  const cacheKey = await buildTranslationCacheKey(request);
   if (TRANSLATION_CACHE.has(cacheKey)) {
-    return Promise.resolve(TRANSLATION_CACHE.get(cacheKey));
+    return TRANSLATION_CACHE.get(cacheKey);
   }
-  return handleTranslation(request);
+  if (TRANSLATION_INFLIGHT.has(cacheKey)) {
+    return TRANSLATION_INFLIGHT.get(cacheKey);
+  }
+  const promise = (async () => {
+    try {
+      const result = await dispatchSingleTranslation(request);
+      setTranslationCache(cacheKey, result);
+      return result;
+    } finally {
+      TRANSLATION_INFLIGHT.delete(cacheKey);
+    }
+  })();
+  TRANSLATION_INFLIGHT.set(cacheKey, promise);
+  return promise;
 }
 
 async function dispatchSingleTranslation(request) {
@@ -1086,22 +1228,45 @@ async function dispatchSingleTranslation(request) {
 }
 
 async function handleTranslation(request) {
-  const cacheKey = buildTranslationCacheKey(request);
+  const cacheKey = await buildTranslationCacheKey(request);
   if (TRANSLATION_CACHE.has(cacheKey)) {
     return TRANSLATION_CACHE.get(cacheKey);
   }
-  const result = await dispatchSingleTranslation(request);
-  setTranslationCache(cacheKey, result);
-  return result;
+  if (TRANSLATION_INFLIGHT.has(cacheKey)) {
+    return TRANSLATION_INFLIGHT.get(cacheKey);
+  }
+  const promise = (async () => {
+    try {
+      const result = await dispatchSingleTranslation(request);
+      setTranslationCache(cacheKey, result);
+      return result;
+    } finally {
+      TRANSLATION_INFLIGHT.delete(cacheKey);
+    }
+  })();
+  TRANSLATION_INFLIGHT.set(cacheKey, promise);
+  return promise;
 }
 
 // ========================================
 // 8. Main background script - Event handlers
 // ========================================
+// DEBUG gate — off by default. Errors always log (sanitized).
+const DEBUG = false;
 const logger = {
-  error: (ctx, err) => console.error(`[ZDFTranslate][${ctx}]`, err),
-  warn: (ctx, msg) => console.warn(`[ZDFTranslate][${ctx}]`, msg),
-  info: (ctx, msg) => console.info(`[ZDFTranslate][${ctx}]`, msg),
+  error: (ctx, err) => {
+    const safe = sanitizeErrorMessage(err?.message || String(err || ''));
+    console.error(`[ZDFTranslate][${ctx}]`, safe);
+  },
+  warn: (ctx, msg) => {
+    if (!DEBUG) return;
+    const safe = sanitizeErrorMessage(typeof msg === 'string' ? msg : (msg?.message || String(msg || '')));
+    console.warn(`[ZDFTranslate][${ctx}]`, safe);
+  },
+  info: (ctx, msg) => {
+    if (!DEBUG) return;
+    console.info(`[ZDFTranslate][${ctx}]`, msg);
+  },
 };
 
 function ensureContextMenu() {

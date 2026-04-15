@@ -300,11 +300,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       { id: 'kimi-k2-thinking', name: 'Kimi K2 Thinking' }
     ],
     zhipu: [
-      { id: 'glm-5.1', name: 'GLM 5.1' },
-      { id: 'glm-5', name: 'GLM 5' },
-      { id: 'glm-5-turbo', name: 'GLM 5 Turbo' },
-      { id: 'glm-4.7', name: 'GLM 4.7' },
-      { id: 'glm-4.7-flash', name: 'GLM 4.7 Flash' }
+      { id: 'glm-5.1', name: 'GLM-5.1' },
+      { id: 'glm-5', name: 'GLM-5' },
+      { id: 'glm-5-turbo', name: 'GLM-5 Turbo' },
+      { id: 'glm-4-flash', name: 'GLM-4-Flash' },
+      { id: 'glm-4-plus', name: 'GLM-4-Plus' }
     ],
     aliyun: [
       { id: 'qwen-mt-turbo', name: 'qwen-mt-turbo' },
@@ -321,8 +321,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       { id: 'qwen-turbo', name: 'qwen-turbo' }
     ],
     deepseek: [
-      { id: 'deepseek-chat', name: 'deepseek-chat' },
-      { id: 'deepseek-reasoner', name: 'deepseek-reasoner' }
+      { id: 'deepseek-chat', name: 'deepseek-chat (V3.2)' },
+      { id: 'deepseek-reasoner', name: 'deepseek-reasoner (V3.2)' }
     ],
     openai: [
       { id: 'gpt-5.4', name: 'GPT-5.4' },
@@ -334,6 +334,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       { id: 'gpt-4o', name: 'GPT-4o' },
       { id: 'gpt-4o-mini', name: 'GPT-4o Mini' }
     ],
+    // NOTE: `deprecated: true` marks a model as retired; UI appends "（已弃用）"
     openrouter: [
       { id: 'openai/gpt-5.4', name: 'GPT-5.4' },
       { id: 'openai/gpt-5.4-pro', name: 'GPT-5.4 Pro' },
@@ -355,21 +356,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     ],
     gemini: [
       { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro' },
-      { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash' },
       { id: 'gemini-3.1-flash-lite-preview', name: 'Gemini 3.1 Flash Lite' },
+      { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash' },
       { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro' },
       { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-      { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite' }
+      { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite' },
+      { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', deprecated: true }
     ],
     claude: [
       { id: 'claude-opus-4-6', name: 'Claude Opus 4.6' },
       { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6' },
-      { id: 'claude-haiku-4-5', name: 'Claude Haiku 4.5' },
+      { id: 'claude-haiku-4-5-20251001', name: 'Claude Haiku 4.5' },
       { id: 'claude-sonnet-4-5', name: 'Claude Sonnet 4.5' },
       { id: 'claude-opus-4-5', name: 'Claude Opus 4.5' },
       { id: 'claude-opus-4-1', name: 'Claude Opus 4.1' },
-      { id: 'claude-sonnet-4', name: 'Claude Sonnet 4' },
-      { id: 'claude-opus-4', name: 'Claude Opus 4' }
+      { id: 'claude-sonnet-4-20250514', name: 'Claude Sonnet 4', deprecated: true },
+      { id: 'claude-opus-4-20250514', name: 'Claude Opus 4', deprecated: true }
     ]
   };
 
@@ -1077,7 +1079,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     models.forEach(model => {
       const option = document.createElement('option');
       option.value = model.id;
-      option.textContent = decorateModelName(service, model.name || model.id);
+      const base = decorateModelName(service, model.name || model.id);
+      option.textContent = model.deprecated ? `${base}（已弃用）` : base;
       if (model.id === selectedModel) {
         option.selected = true;
       }

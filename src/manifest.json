@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "__MSG_appName__",
   "version": "26.4.15",
-  "version_name": "26.4.15b5",
+  "version_name": "26.4.15b6",
   "description": "__MSG_appDescription__",
   "default_locale": "zh_CN",
   "permissions": [
@@ -11,7 +11,19 @@
     "contextMenus"
   ],
   "host_permissions": [
-    "<all_urls>"
+    "https://api.openai.com/*",
+    "https://api.anthropic.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.deepseek.com/*",
+    "https://api.moonshot.cn/*",
+    "https://open.bigmodel.cn/*",
+    "https://dashscope.aliyuncs.com/*",
+    "https://openrouter.ai/*",
+    "https://api.deepl.com/*",
+    "https://api-free.deepl.com/*",
+    "https://api-edge.cognitive.microsofttranslator.com/*",
+    "https://translate.googleapis.com/*",
+    "https://edge.microsoft.com/*"
   ],
   "action": {
     "default_popup": "popup.html",

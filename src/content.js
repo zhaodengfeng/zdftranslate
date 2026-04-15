@@ -72,10 +72,26 @@ const _t = (key, fallback) => {
     });
   }
 
+  // Shared constants (moved from scattered magic numbers)
+  const CONSTANTS = {
+    CACHE_TTL: 5000,
+    LAZY_ROOT_MARGIN: '300px',
+    VIEWPORT_MARGIN: 400,
+    MAX_LAZY_OBSERVERS: 8,
+    ARTICLE_SUMMARY_MAX: 800,
+    SPA_MUTATION_DEBOUNCE: 800,
+    POPUP_STREAM_SPEED_MS: 14,
+    SHORT_TEXT_THRESHOLD: 50,
+    TARGET_LANG_RATIO: 0.3,
+    TARGET_LANG_RATIO_SHORT: 0.2,
+  };
+
   // 翻译状态跟踪
   let translationActive = false;
   let translatedElements = new Set();
   let lazyLoadObservers = []; // 保存懒加载 observers 以便清理
+  let spaMutationObserver = null;
+  let spaMutationTimer = null;
   let lastKnownTabId = 0;
 
   function getActualTranslationStatus() {
@@ -575,14 +591,18 @@ const _t = (key, fallback) => {
     return true;
   }
 
-  // 简单语言检测
+  // 简单语言检测（支持简中 + 繁中；短文本使用更低阈值）
   function isTargetLanguage(text) {
     // 日文假名、韩文 Hangul 需优先排除，避免误判为中文而跳过翻译
     if (/[\u3040-\u309f\u30a0-\u30ff]/.test(text)) return false;
     if (/[\uac00-\ud7af]/.test(text)) return false;
-    // 如果包含大量中文字符，认为是中文
-    const chineseChars = text.match(/[\u4e00-\u9fa5]/g);
-    return chineseChars && chineseChars.length > text.length * 0.3;
+    // 中文字符（简中 + CJK 扩展 A 即繁中部分罕用字）
+    const cjk = text.match(/[\u4e00-\u9fa5\u3400-\u4dbf]/g);
+    if (!cjk || !cjk.length) return false;
+    const threshold = text.length < CONSTANTS.SHORT_TEXT_THRESHOLD
+      ? CONSTANTS.TARGET_LANG_RATIO_SHORT
+      : CONSTANTS.TARGET_LANG_RATIO;
+    return cjk.length > text.length * threshold;
   }
 
   // 翻译段落
@@ -619,25 +639,74 @@ const _t = (key, fallback) => {
     }
   }
 
-  function safeRestoreHtml(element, htmlString) {
-    if (!htmlString) {
-      element.innerHTML = '';
+  // Strict whitelist HTML sanitizer.
+  // Allowed tags: b, i, em, strong, span, a (href only http/https), code, br, sub, sup.
+  // Strips ALL other tags (keeping their text children), ALL attributes except href on <a>,
+  // and any attribute whose name starts with 'on' or value contains 'javascript:'.
+  const SAFE_HTML_TAGS = new Set(['B', 'I', 'EM', 'STRONG', 'SPAN', 'A', 'CODE', 'BR', 'SUB', 'SUP', 'P']);
+
+  function sanitizeNodeForSafeHtml(node, out) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      out.appendChild(document.createTextNode(node.nodeValue || ''));
       return;
     }
-    const temp = document.createElement('div');
-    temp.innerHTML = htmlString;
-    temp.querySelectorAll('script').forEach((s) => s.remove());
-    temp.querySelectorAll('*').forEach((el) => {
-      Array.from(el.attributes).forEach((attr) => {
-        if (attr.name.toLowerCase().startsWith('on')) {
-          el.removeAttribute(attr.name);
-        }
-      });
-    });
-    element.innerHTML = '';
-    while (temp.firstChild) {
-      element.appendChild(temp.firstChild);
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+    const tag = node.tagName ? node.tagName.toUpperCase() : '';
+    // Strip hostile containers entirely (including their text)
+    if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'IFRAME' || tag === 'OBJECT' || tag === 'EMBED' || tag === 'SVG' || tag === 'MATH') {
+      return;
     }
+
+    if (!SAFE_HTML_TAGS.has(tag)) {
+      // Unwrap: process children directly (keep their text)
+      for (const child of Array.from(node.childNodes)) {
+        sanitizeNodeForSafeHtml(child, out);
+      }
+      return;
+    }
+
+    const clone = document.createElement(tag);
+    // Only allow href on <a>, and only http/https.
+    if (tag === 'A') {
+      const href = node.getAttribute('href') || '';
+      try {
+        const u = new URL(href, window.location.href);
+        if (u.protocol === 'http:' || u.protocol === 'https:') {
+          clone.setAttribute('href', u.href);
+          clone.setAttribute('rel', 'noopener noreferrer');
+          clone.setAttribute('target', '_blank');
+        }
+      } catch (_) {
+        // Invalid URL — drop href
+      }
+    }
+    // All other attributes dropped (no on*, no style, no src, etc.)
+    for (const child of Array.from(node.childNodes)) {
+      sanitizeNodeForSafeHtml(child, clone);
+    }
+    out.appendChild(clone);
+  }
+
+  function safeRestoreHtml(element, htmlString) {
+    if (!htmlString) {
+      element.textContent = '';
+      return;
+    }
+    // Parse in an inert document to avoid any pre-insertion side effects.
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(`<div>${htmlString}</div>`, 'text/html');
+    const root = doc.body.firstChild;
+
+    const frag = document.createDocumentFragment();
+    if (root) {
+      for (const child of Array.from(root.childNodes)) {
+        sanitizeNodeForSafeHtml(child, frag);
+      }
+    }
+    // Clear destination without using innerHTML to avoid any parser reentry.
+    while (element.firstChild) element.removeChild(element.firstChild);
+    element.appendChild(frag);
   }
 
   function buildBgStyle(style) {
@@ -806,7 +875,7 @@ const _t = (key, fallback) => {
 
   let articleContextCache = null;
   let articleContextCacheTime = 0;
-  const ARTICLE_CONTEXT_TTL = 5000;
+  const ARTICLE_CONTEXT_TTL = CONSTANTS.CACHE_TTL;
 
   function getArticleContext() {
     if (!config.enableAIContentAware) {
@@ -820,7 +889,7 @@ const _t = (key, fallback) => {
     const title = (document.title || '').trim();
     const main = document.querySelector('article, main, [role="main"], .post-content, .entry-content, .article-body') || document.body;
     const raw = (main?.innerText || '').replace(/\s+/g, ' ').trim();
-    const summary = raw.slice(0, 800);
+    const summary = raw.slice(0, CONSTANTS.ARTICLE_SUMMARY_MAX);
 
     articleContextCache = {
       articleTitle: title,
@@ -1007,8 +1076,12 @@ const _t = (key, fallback) => {
       return;
     }
 
+    // Snapshot config at start — avoids race if user switches service/targetLang
+    // mid-translation; the entire run uses the snapshot.
+    const configSnapshot = JSON.parse(JSON.stringify(config));
+
     // 区分可见区域与待滚动区域
-    const viewportMargin = 400;
+    const viewportMargin = CONSTANTS.VIEWPORT_MARGIN;
     const immediate = [];
     const delayed = [];
     for (const el of candidates) {
@@ -1020,7 +1093,7 @@ const _t = (key, fallback) => {
       }
     }
 
-    const tuning = getBatchTuning(config.translationService);
+    const tuning = getBatchTuning(configSnapshot.translationService);
 
     // 先翻译可见区域，营造"从上到下"的渐进感
     await translateWithConcurrency(immediate, tuning.batchSize, tuning.concurrency);
@@ -1044,11 +1117,19 @@ const _t = (key, fallback) => {
         entries.forEach(e => {
           if (e.isIntersecting) observer.unobserve(e.target);
         });
-      }, { rootMargin: '300px' });
+      }, { rootMargin: CONSTANTS.LAZY_ROOT_MARGIN });
 
       delayed.forEach(el => observer.observe(el));
+      // Cap observers to avoid runaway memory on long-lived pages
+      while (lazyLoadObservers.length >= CONSTANTS.MAX_LAZY_OBSERVERS) {
+        const old = lazyLoadObservers.shift();
+        try { old.disconnect(); } catch (_) {}
+      }
       lazyLoadObservers.push(observer);
     }
+
+    // SPA: watch newly added content blocks and schedule them (debounced)
+    startSpaMutationObserver();
 
     await syncAndNotifyTranslationStatus(true);
     updateFloatingButtonState();
@@ -1085,10 +1166,50 @@ const _t = (key, fallback) => {
     translatedElements.clear();
 
     // 断开所有懒加载 observers
-    lazyLoadObservers.forEach(observer => observer.disconnect());
-    lazyLoadObservers = [];
+    lazyLoadObservers.forEach(observer => {
+      try { observer.disconnect(); } catch (_) {}
+    });
+    lazyLoadObservers.length = 0;
+
+    // Disconnect SPA mutation observer
+    stopSpaMutationObserver();
 
     syncAndNotifyTranslationStatus(false);
+  }
+
+  function startSpaMutationObserver() {
+    if (spaMutationObserver) return;
+    try {
+      spaMutationObserver = new MutationObserver((mutations) => {
+        if (!translationActive) return;
+        let hasAdditions = false;
+        for (const m of mutations) {
+          if (m.addedNodes && m.addedNodes.length) { hasAdditions = true; break; }
+        }
+        if (!hasAdditions) return;
+        if (spaMutationTimer) clearTimeout(spaMutationTimer);
+        spaMutationTimer = setTimeout(() => {
+          if (!translationActive) return;
+          try {
+            const candidates = collectTranslationCandidates();
+            if (!candidates.length) return;
+            const tuning = getBatchTuning(config.translationService);
+            translateWithConcurrency(candidates, tuning.batchSize, tuning.concurrency);
+          } catch (_) { /* ignore */ }
+        }, CONSTANTS.SPA_MUTATION_DEBOUNCE);
+      });
+      spaMutationObserver.observe(document.body, { childList: true, subtree: true });
+    } catch (_) {
+      // ignore — SPA detection is best-effort
+    }
+  }
+
+  function stopSpaMutationObserver() {
+    if (spaMutationTimer) { clearTimeout(spaMutationTimer); spaMutationTimer = null; }
+    if (spaMutationObserver) {
+      try { spaMutationObserver.disconnect(); } catch (_) {}
+      spaMutationObserver = null;
+    }
   }
 
   // 切换显示模式
@@ -1170,6 +1291,10 @@ const _t = (key, fallback) => {
       popup = document.createElement('div');
       popup.id = 'zdf-translation-popup';
       popup.className = 'zdf-popup';
+      // A11y: mark as modal dialog
+      popup.setAttribute('role', 'dialog');
+      popup.setAttribute('aria-modal', 'true');
+      popup.setAttribute('aria-label', 'ZDFTranslate');
 
       // 顶部栏
       const header = document.createElement('div');
@@ -1177,7 +1302,13 @@ const _t = (key, fallback) => {
 
       const logo = document.createElement('div');
       logo.className = 'zdf-popup-logo';
-      logo.innerHTML = `<img src="${chrome.runtime.getURL('icons/icon48.png')}" class="zdf-popup-logo-img" alt="ZDFTranslate">`;
+      // Use DOM API instead of innerHTML for the image (chrome.runtime.getURL
+      // is trusted but DOM API avoids any parser overhead / future concerns).
+      const logoImg = document.createElement('img');
+      logoImg.src = chrome.runtime.getURL('icons/icon48.png');
+      logoImg.className = 'zdf-popup-logo-img';
+      logoImg.alt = 'ZDFTranslate';
+      logo.appendChild(logoImg);
 
       const toolbar = document.createElement('div');
       toolbar.className = 'zdf-popup-toolbar';
@@ -1185,6 +1316,7 @@ const _t = (key, fallback) => {
       const toggleBtn = document.createElement('button');
       toggleBtn.className = 'zdf-popup-tool';
       toggleBtn.title = '显示/隐藏原文';
+      // static SVG, no user input
       toggleBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M4 6h16M4 12h16M4 18h10"/>
       </svg>`;
@@ -1196,6 +1328,7 @@ const _t = (key, fallback) => {
       const closeBtn = document.createElement('button');
       closeBtn.className = 'zdf-popup-tool zdf-popup-close';
       closeBtn.title = '关闭';
+      // static SVG, no user input
       closeBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M18 6L6 18M6 6l12 12"/>
       </svg>`;
@@ -1267,7 +1400,7 @@ const _t = (key, fallback) => {
     const originalDiv = popup.querySelector('.zdf-popup-original');
     if (originalDiv) {
       const paras = normalizeTextToParagraphsStrict(originalText || '');
-      originalDiv.innerHTML = '';
+      originalDiv.textContent = '';
       if (paras.length > 0) {
         paras.forEach(t => {
           const p = document.createElement('p');
@@ -1328,7 +1461,7 @@ const _t = (key, fallback) => {
     popupStreamSkip = null;
 
     const paragraphs = splitTranslatedParagraphs(text);
-    el.innerHTML = '';
+    el.textContent = '';
 
     if (!paragraphs.length) {
       if (onDone) onDone();
@@ -1382,7 +1515,7 @@ const _t = (key, fallback) => {
         paraIdx += 1;
         charIdx = 0;
       }
-    }, 14);
+    }, Number(config?.popupStreamSpeedMs) || CONSTANTS.POPUP_STREAM_SPEED_MS);
   }
   function showTranslationPopup(originalText, translatedText, error, originalSegments = [], translatedSegments = []) {
     const popup = ensureTranslationPopup(originalText);
@@ -1397,7 +1530,7 @@ const _t = (key, fallback) => {
         clearInterval(popupStreamTimer);
         popupStreamTimer = null;
       }
-      translatedDiv.innerHTML = '';
+      translatedDiv.textContent = '';
       const errSpan = document.createElement('span');
       errSpan.className = 'zdf-popup-error';
       errSpan.textContent = `翻译失败: ${error}`;
@@ -1414,7 +1547,7 @@ const _t = (key, fallback) => {
         clearInterval(popupStreamTimer);
         popupStreamTimer = null;
       }
-      translatedDiv.innerHTML = '';
+      translatedDiv.textContent = '';
       const loadingSpan = document.createElement('span');
       loadingSpan.className = 'zdf-popup-loading';
       const spinner = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -1449,7 +1582,7 @@ const _t = (key, fallback) => {
 
     const originalDiv = popup.querySelector('.zdf-popup-original');
     if (originalDiv) {
-      originalDiv.innerHTML = '';
+      originalDiv.textContent = '';
       popupLatestOriginalSegments.forEach(seg => {
         const p = document.createElement('p');
         p.textContent = seg;
@@ -1602,7 +1735,11 @@ const _t = (key, fallback) => {
     btn.id = 'zdf-selection-quick-btn';
     btn.className = 'zdf-selection-quick-btn';
     btn.title = _t('selectionTranslate', '翻译选中文本');
-    btn.innerHTML = `<img src="${chrome.runtime.getURL('assets/float-icon-32.png')}" alt="ZDFTranslate">`;
+    btn.setAttribute('aria-label', _t('selectionTranslate', '翻译选中文本'));
+    const selImg = document.createElement('img');
+    selImg.src = chrome.runtime.getURL('assets/float-icon-32.png');
+    selImg.alt = 'ZDFTranslate';
+    btn.appendChild(selImg);
 
     // 防止点击按钮时触发 selection 丢失
     btn.addEventListener('mousedown', (e) => e.preventDefault());
@@ -1954,9 +2091,12 @@ const _t = (key, fallback) => {
     btn.id = 'zdf-floating-translate-btn';
     btn.className = 'zdf-floating-btn';
     btn.title = _t('floatTranslate', '点击翻译页面');
+    btn.setAttribute('aria-label', _t('floatTranslate', '点击翻译页面'));
+    btn.setAttribute('role', 'button');
 
     // 翻译图标 + 右上角绿勾徽章
     const floatIconUrl = chrome.runtime.getURL('assets/float-icon-32.png');
+    // static template, no user input
     btn.innerHTML = `
       <img class="zdf-float-icon-img" src="${floatIconUrl}" alt="ZDFTranslate">
       <div class="zdf-float-badge">
